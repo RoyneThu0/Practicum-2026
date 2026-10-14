@@ -36,3 +36,11 @@
     }
   }
 }
+
+/* Keyboard focus ring from the original site, applied everywhere. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+}
