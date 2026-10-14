@@ -1,9 +1,15 @@
+import Header from "./components/Header.jsx";
+import Hero from "./components/Hero.jsx";
+
 function App() {
   return (
-    <main className="p-4">
-      <h1 className="font-display text-5xl">Practicum Photography</h1>
-    </main>
-  )
+    <>
+      <Header />
+      <main id="main">
+        <Hero />
+      </main>
+    </>
+  );
 }
 
-export default App
+export default App;
