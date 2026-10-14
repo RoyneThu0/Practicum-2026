@@ -1,4 +1,5 @@
 import Container from "./Container.jsx";
+import Eyebrow from "./Eyebrow.jsx";
 
 const facts = [
   { label: "Based in", value: "Nanyuki, Kenya" },
@@ -27,7 +28,7 @@ function About() {
         </figure>
 
         <div className="min-w-0 max-w-xl">
-          <p className="mb-3 font-mono text-xs tracking-[0.12em] text-ink-soft uppercase">About</p>
+          <Eyebrow>About</Eyebrow>
           <h2 id="about-title" className="font-display text-[2rem] leading-none tracking-tight text-balance">
             Slow pictures of wide places
           </h2>

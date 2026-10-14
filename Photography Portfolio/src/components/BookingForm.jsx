@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Container from "./Container.jsx";
+import Eyebrow from "./Eyebrow.jsx";
 
 // Replace YOUR_FORM_ID with a real Formspree form id to start receiving bookings.
 const FORM_ACTION = "https://formspree.io/f/YOUR_FORM_ID";
@@ -30,9 +31,7 @@ function BookingForm() {
     <section id="book" aria-labelledby="book-title" className="scroll-mt-16 py-12">
       <Container className="grid grid-cols-1 items-start gap-8">
         <div className="min-w-0">
-          <p className="mb-3 font-mono text-xs tracking-[0.12em] text-ink-soft uppercase">
-            Book a shoot
-          </p>
+          <Eyebrow>Book a shoot</Eyebrow>
           <h2 id="book-title" className="font-display text-[2rem] leading-none tracking-tight text-balance">
             Tell me where and when
           </h2>
