@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Container from "./Container.jsx";
 import Eyebrow from "./Eyebrow.jsx";
+import FormField, { inputClass } from "./FormField.jsx";
 
 // Replace YOUR_FORM_ID with a real Formspree form id to start receiving bookings.
 const FORM_ACTION = "https://formspree.io/f/YOUR_FORM_ID";
@@ -10,9 +11,6 @@ const sessions = [
   { name: "Editorial assignment", length: "by brief" },
   { name: "Print commission", length: "2–6 weeks" },
 ];
-
-const inputClass =
-  "w-full rounded border border-line bg-paper px-3 py-2.5 text-base text-ink focus:border-accent focus:outline-2 focus:outline-accent";
 
 function BookingForm() {
   const [status, setStatus] = useState("");
@@ -68,19 +66,16 @@ function BookingForm() {
           className="flex min-w-0 flex-col gap-4 rounded border border-line bg-paper-raised p-5"
         >
           <div className="flex flex-col gap-4">
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <label htmlFor="name" className="text-sm font-bold">Name</label>
+            <FormField id="name" label="Name">
               <input id="name" name="name" type="text" autoComplete="name" required className={inputClass} />
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <label htmlFor="email" className="text-sm font-bold">Email</label>
+            </FormField>
+            <FormField id="email" label="Email">
               <input id="email" name="email" type="email" autoComplete="email" required className={inputClass} />
-            </div>
+            </FormField>
           </div>
 
           <div className="flex flex-col gap-4">
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <label htmlFor="shoot-type" className="text-sm font-bold">Type of shoot</label>
+            <FormField id="shoot-type" label="Type of shoot">
               <select id="shoot-type" name="shoot_type" required className={inputClass}>
                 <option value="">Choose one</option>
                 {sessions.map((session) => (
@@ -88,15 +83,13 @@ function BookingForm() {
                 ))}
                 <option>Something else</option>
               </select>
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <label htmlFor="date" className="text-sm font-bold">Preferred date</label>
+            </FormField>
+            <FormField id="date" label="Preferred date">
               <input id="date" name="date" type="date" className={inputClass} />
-            </div>
+            </FormField>
           </div>
 
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <label htmlFor="message" className="text-sm font-bold">Location and details</label>
+          <FormField id="message" label="Location and details">
             <textarea
               id="message"
               name="message"
@@ -104,7 +97,7 @@ function BookingForm() {
               placeholder="Where is it, what do you need the photos for, and any dates that won't work?"
               className={`${inputClass} min-h-32 resize-y`}
             />
-          </div>
+          </FormField>
 
           <button
             type="submit"
