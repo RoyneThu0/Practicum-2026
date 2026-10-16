@@ -1,6 +1,22 @@
 # Practicum Photography
 
-A single-page photography portfolio built with plain HTML5 and CSS3. No frameworks, no build step, no dependencies.
+A single-page landscape photography portfolio. Assignment 1 was plain HTML and CSS; Assignment 2 rebuilds the same site with Vite, React and Tailwind CSS v4. Plain JavaScript, no other libraries, and all content is hardcoded in the source.
+
+## Running it
+
+You need Node.js 20.19+ or 22.12+ (what Vite 8 requires).
+
+```sh
+cd "Photography Portfolio"
+npm install
+npm run dev
+```
+
+Then open the address Vite prints (usually http://localhost:5173).
+
+- `npm run build` builds the production site into `Photography Portfolio/dist/`.
+- `npm run preview` serves that build locally.
+- `npm run lint` checks the code with oxlint.
 
 ## Project structure
 
@@ -8,46 +24,42 @@ A single-page photography portfolio built with plain HTML5 and CSS3. No framewor
 Practicum-2026/
 ├── README.md
 └── Photography Portfolio/
+    ├── index.html            page shell: fonts, favicon, the #root div
+    ├── vite.config.js        React + Tailwind plugins
+    ├── public/
+    │   ├── favicon.svg
+    │   └── images/           your own photos
     └── src/
-        ├── index.html   page content and structure
-        ├── style.css    all styles
-        └── images/      your own photos (empty for now)
+        ├── main.jsx          mounts <App /> into #root
+        ├── App.jsx           assembles the page and holds the shortlist state
+        ├── index.css         Tailwind import, @theme tokens, dark mode
+        ├── data/photos.js    every gallery photo, plus the filter categories
+        ├── lib/unsplash.js   builds src / srcSet / sizes for each photo
+        └── components/
+            ├── Container.jsx        shared centred max-width wrapper
+            ├── Header.jsx           brand, nav, shortlist count
+            ├── Hero.jsx             the h1 and intro
+            ├── Gallery.jsx          filter state + the photo grid
+            ├── FilterBar.jsx        the category buttons
+            ├── PhotoTile.jsx        one photo in the grid
+            ├── ShortlistToggle.jsx  the reusable shortlist button
+            ├── About.jsx
+            ├── BookingForm.jsx
+            ├── FormField.jsx        label + control pair used by the form
+            ├── Eyebrow.jsx          small section label
+            └── Footer.jsx
 ```
 
-## Running it
-
-Open `Photography Portfolio/src/index.html` in a browser. That's it.
-
-## Features
-
-- **Photo gallery grid** built with CSS Grid: 1 column on phones, 2 on tablets, 4 on desktop.
-- **Mixed tile sizes**: single, tall, wide and a 2×2 feature tile. The spans add up to 16 cells, so the grid fills 2 and 4 columns with no gaps.
-- **`object-fit: cover`** on every photo, so images of any shape fill their tile and crop instead of stretching.
-- **Responsive images**: each photo is requested at the size and crop its tile needs, with `srcset` so phones download smaller files.
-- **Flexbox** for the header, nav, hero, about section, form rows and footer.
-- **Book-a-shoot form** in place of a shop button.
-- **Semantic HTML**: `header`, `nav`, `main`, labelled `section`s, `footer`, one `h1`, a skip link and working anchor links.
-- **Colors as CSS variables**, with an automatic dark mode that follows the visitor's system setting.
-- `box-sizing: border-box` globally, and no horizontal scrolling on phone, tablet or desktop.
+- **`src/data/photos.js`** is the single array of photo objects (id, title, category, alt, shape, unsplashId, credit, link). The gallery maps over it, so adding a photo means adding an object, not copying markup. The `categories` array for the filter buttons is exported from the same file.
+- **`src/lib/unsplash.js`** turns a photo's `unsplashId` and `shape` into a `src`, a `srcSet` and a `sizes` attribute, so each tile downloads an image cropped to its own shape and phones get smaller files.
+- **`src/index.css`** holds the design tokens in Tailwind's `@theme` block (`--color-paper`, `--color-ink`, `--color-accent`, the three fonts, …). Each one becomes utilities such as `bg-paper`, `text-ink` and `font-display`. Dark mode follows the visitor's system setting: a `prefers-color-scheme: dark` block swaps the token values and every utility follows.
 
 ## Photos
 
-The gallery currently loads its photos from [Unsplash](https://unsplash.com) by URL, used under the Unsplash License.
+The gallery loads its photos from [Unsplash](https://unsplash.com) by URL, used under the Unsplash License. Each tile's caption credits the photographer and links to the original.
 
-To use your own photos instead:
-
-1. Put the files in `Photography Portfolio/src/images/`.
-2. In `index.html`, set each `<img>`'s `src` to the file, for example `src="images/my-photo.jpg"`.
-3. Delete that image's `srcset` and `sizes` attributes, and update its `alt` text and caption.
-
-Any shape of photo works; `object-fit: cover` crops it to fit the tile. To change which part stays in view, add `class="focus-low"` or `class="focus-high"` to the `<img>`.
+To use your own photos instead, put the files in `Photography Portfolio/public/images/`. Anything in `public/` is served from the site root, so `public/images/dune.jpg` is referenced as `/images/dune.jpg`. Right now `imageFor()` in `src/lib/unsplash.js` always builds Unsplash URLs, so give the photo object a path (for example `src: "/images/dune.jpg"`) and have `imageFor()` return that path when it is set. Any shape of photo works: `object-cover` crops it to fit the tile.
 
 ## Booking form
 
-The form posts to [Formspree](https://formspree.io). Create a free form there and replace `YOUR_FORM_ID` in the form's `action` in `index.html`. Until then, the form tells visitors it isn't connected yet and nothing is sent.
-
-## Customising
-
-- **Colors**: edit the variables in the `:root` block at the top of `style.css` (dark-mode values are in the two blocks below it).
-- **Fonts**: change the Google Fonts `<link>` in `index.html` and the `--font-*` variables in `style.css`.
-- **Text**: edit `index.html` directly. Keep exactly one `<h1>`.
+The form posts to [Formspree](https://formspree.io). Create a free form there and replace `YOUR_FORM_ID` in `FORM_ACTION` at the top of `src/components/BookingForm.jsx`. Until then, submitting shows a message that the form isn't connected yet and nothing is sent. Shortlisted photo titles are sent with the request in a hidden field.
