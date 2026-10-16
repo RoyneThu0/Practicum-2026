@@ -30,7 +30,10 @@ function App() {
         <Hero />
         <Gallery shortlist={shortlist} onShortlistChange={setShortlisted} />
         <About />
-        <BookingForm shortlistedTitles={shortlistedTitles} />
+        <BookingForm
+          shortlistedTitles={shortlistedTitles}
+          onClearShortlist={() => setShortlist([])}
+        />
       </main>
       <Footer />
     </>

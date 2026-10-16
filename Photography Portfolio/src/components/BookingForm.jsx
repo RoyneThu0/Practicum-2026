@@ -12,7 +12,7 @@ const sessions = [
   { name: "Print commission", length: "2–6 weeks" },
 ];
 
-function BookingForm({ shortlistedTitles = [] }) {
+function BookingForm({ shortlistedTitles = [], onClearShortlist }) {
   const [status, setStatus] = useState("");
 
   function handleSubmit(event) {
@@ -100,10 +100,17 @@ function BookingForm({ shortlistedTitles = [] }) {
           </FormField>
 
           {shortlistedTitles.length > 0 && (
-            <div className="rounded border border-line bg-paper px-3 py-2.5 text-sm">
-              <p>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded border border-line bg-paper px-3 py-2.5 text-sm">
+              <p className="min-w-0">
                 <span className="font-bold">Shortlisted:</span> {shortlistedTitles.join(", ")}
               </p>
+              <button
+                type="button"
+                onClick={onClearShortlist}
+                className="font-semibold text-accent underline underline-offset-2 hover:text-ink"
+              >
+                Clear shortlist
+              </button>
               {/* Sent with the form so I know which photos you liked. */}
               <input type="hidden" name="shortlist" value={shortlistedTitles.join(", ")} />
             </div>
