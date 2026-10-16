@@ -40,7 +40,7 @@ function Gallery({ shortlist, onShortlistChange }) {
               key={photo.id}
               photo={photo}
               eager={index === 0}
-              shortlist={shortlist}
+              isShortlisted={shortlist.includes(photo.id)}
               onShortlistChange={onShortlistChange}
             />
           ))}

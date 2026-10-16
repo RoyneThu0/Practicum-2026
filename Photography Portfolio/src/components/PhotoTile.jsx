@@ -10,7 +10,7 @@ const shapeClasses = {
   feature: "row-span-2",
 };
 
-function PhotoTile({ photo, eager = false, shortlist, onShortlistChange }) {
+function PhotoTile({ photo, eager = false, isShortlisted, onShortlistChange }) {
   const image = imageFor(photo);
 
   return (
@@ -43,7 +43,7 @@ function PhotoTile({ photo, eager = false, shortlist, onShortlistChange }) {
       {/* A sibling of the link, not inside it: a button inside an <a> is invalid HTML. */}
       <div className="absolute top-2 right-2 z-10">
         <ShortlistToggle
-          value={shortlist.includes(photo.id)}
+          value={isShortlisted}
           onChange={(next) => onShortlistChange(photo.id, next)}
           label={photo.title}
         />
