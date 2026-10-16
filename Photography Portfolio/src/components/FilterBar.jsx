@@ -3,9 +3,11 @@
 // It shows whichever category it is given as `active`, and when a button is
 // clicked it reports the choice with onChange(id). Gallery owns the state.
 
-const pillClass = "rounded-full border px-3.5 py-1.5 text-sm font-semibold";
+// active:scale-95 gives a small "pressed" dip; reduced-motion users get no movement.
+const pillClass =
+  "rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors active:scale-95 motion-reduce:transform-none";
 const activePillClass = "border-ink bg-ink text-paper";
-const inactivePillClass = "border-line";
+const inactivePillClass = "border-line hover:border-ink";
 
 function FilterBar({ categories, active, onChange }) {
   return (
