@@ -12,10 +12,10 @@ function About() {
     <section
       id="about"
       aria-labelledby="about-title"
-      className="scroll-mt-16 border-y border-line bg-paper-raised py-12"
+      className="scroll-mt-16 border-y border-line bg-paper-raised py-12 sm:py-16 lg:py-24"
     >
-      <Container className="flex flex-col gap-6">
-        <figure className="min-w-0 max-w-sm">
+      <Container className="flex flex-col gap-6 md:flex-row md:items-center md:gap-12 lg:gap-16">
+        <figure className="min-w-0 max-w-sm md:w-2/5 md:shrink-0">
           <img
             src="https://images.unsplash.com/photo-1768011849411-7c77d8f827c8?auto=format&fit=crop&w=800&h=1000&q=75"
             alt="A photographer holding a camera in a forest"
@@ -29,7 +29,7 @@ function About() {
 
         <div className="min-w-0 max-w-xl">
           <Eyebrow>About</Eyebrow>
-          <h2 id="about-title" className="font-display text-[2rem] leading-none tracking-tight text-balance">
+          <h2 id="about-title" className="font-display text-[2rem] leading-none tracking-tight text-balance sm:text-5xl lg:text-[3.25rem]">
             Slow pictures of wide places
           </h2>
           <p className="mt-4">
