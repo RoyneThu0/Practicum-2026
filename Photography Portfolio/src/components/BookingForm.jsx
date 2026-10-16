@@ -26,11 +26,11 @@ function BookingForm({ shortlistedTitles = [], onClearShortlist }) {
   }
 
   return (
-    <section id="book" aria-labelledby="book-title" className="scroll-mt-16 py-12">
-      <Container className="grid grid-cols-1 items-start gap-8">
+    <section id="book" aria-labelledby="book-title" className="scroll-mt-16 py-12 sm:py-16 lg:py-24">
+      <Container className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-16">
         <div className="min-w-0">
           <Eyebrow>Book a shoot</Eyebrow>
-          <h2 id="book-title" className="font-display text-[2rem] leading-none tracking-tight text-balance">
+          <h2 id="book-title" className="font-display text-[2rem] leading-none tracking-tight text-balance sm:text-5xl lg:text-[3.25rem]">
             Tell me where and when
           </h2>
           <p className="mt-4 max-w-lg text-ink-soft">
@@ -63,7 +63,7 @@ function BookingForm({ shortlistedTitles = [], onClearShortlist }) {
           action={FORM_ACTION}
           method="POST"
           onSubmit={handleSubmit}
-          className="flex min-w-0 flex-col gap-4 rounded border border-line bg-paper-raised p-5"
+          className="flex min-w-0 flex-col gap-4 rounded border border-line bg-paper-raised p-5 sm:p-8"
         >
           <div className="flex flex-col gap-4">
             <FormField id="name" label="Name">
