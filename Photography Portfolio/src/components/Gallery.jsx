@@ -1,10 +1,8 @@
 import { useState } from "react";
 import photos, { categories } from "../data/photos.js";
 import Container from "./Container.jsx";
+import FilterBar from "./FilterBar.jsx";
 import PhotoTile from "./PhotoTile.jsx";
-
-const pillClass = "rounded-full border border-line px-3.5 py-1.5 text-sm font-semibold";
-const activePillClass = "bg-ink text-paper border-ink";
 
 function Gallery() {
   // State holds only the chosen category. The filtered list is not stored:
@@ -25,19 +23,11 @@ function Gallery() {
         </h2>
 
         <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-3 border-t border-line pt-5">
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Filter photos by landscape">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                type="button"
-                aria-pressed={activeCategory === category.id}
-                onClick={() => setActiveCategory(category.id)}
-                className={`${pillClass} ${activeCategory === category.id ? activePillClass : ""}`}
-              >
-                {category.label}
-              </button>
-            ))}
-          </div>
+          <FilterBar
+            categories={categories}
+            active={activeCategory}
+            onChange={setActiveCategory}
+          />
 
           <p aria-live="polite" className="font-mono text-xs text-ink-soft">
             Showing {visiblePhotos.length} of {photos.length}
