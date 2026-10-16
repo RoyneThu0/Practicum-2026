@@ -5,6 +5,7 @@ import Footer from "./components/Footer.jsx";
 import Gallery from "./components/Gallery.jsx";
 import Header from "./components/Header.jsx";
 import Hero from "./components/Hero.jsx";
+import photos from "./data/photos.js";
 
 function App() {
   // The shortlist lives here (not in Gallery) so it survives filter changes
@@ -17,6 +18,11 @@ function App() {
     );
   }
 
+  // Derived, not stored: the titles always match whatever is in the shortlist.
+  const shortlistedTitles = photos
+    .filter((photo) => shortlist.includes(photo.id))
+    .map((photo) => photo.title);
+
   return (
     <>
       <Header shortlistCount={shortlist.length} />
@@ -24,7 +30,7 @@ function App() {
         <Hero />
         <Gallery shortlist={shortlist} onShortlistChange={setShortlisted} />
         <About />
-        <BookingForm />
+        <BookingForm shortlistedTitles={shortlistedTitles} />
       </main>
       <Footer />
     </>
