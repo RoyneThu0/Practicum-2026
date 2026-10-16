@@ -66,6 +66,23 @@ The shortlist itself, an array of photo ids, lives in `App.jsx`, not in `Gallery
 - reaches `Header`, which shows "Shortlist (n)";
 - reaches `BookingForm`, which lists the shortlisted titles, sends them with the request and has a Clear shortlist button.
 
+## Responsive layout (mobile-first)
+
+Every component is written for a phone first. Unprefixed Tailwind classes are the phone layout, and `sm:` (40rem / 640px), `md:` (48rem / 768px) and `lg:` (64rem / 1024px) classes are added on top as the screen gets wider. There are no `max-*:` variants, so nothing has to be undone for small screens.
+
+| Width | What changes |
+| --- | --- |
+| phone (default) | one column everywhere; form fields stacked; `px-4` gutters |
+| `sm:` 640px+ | gallery goes to 2 columns and wide/feature tiles span 2; form fields pair up side by side; bigger headings and spacing; `px-6` gutters |
+| `md:` 768px+ | About photo sits beside the text |
+| `lg:` 1024px+ | gallery goes to 4 columns; hero heading and intro side by side; booking text and form side by side; `px-10` gutters |
+
+The gallery grid is `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`, with `grid-flow-dense` so smaller tiles fill the gaps. The `sizes` attribute built in `src/lib/unsplash.js` matches these breakpoints, so the browser picks the right image width.
+
+Column spans start at `sm:` on purpose (`wide` is `sm:col-span-2`, `feature` is `row-span-2 sm:col-span-2`). On a phone the grid has one column, and a `col-span-2` there would make the grid add a second column wider than the screen, so the page would scroll sideways. Row spans are fine at every width.
+
+The page was checked at 320, 375, 414, 640, 768, 1024, 1280 and 1440px wide, after clicking every filter and toggling the shortlist: no horizontal scroll at any width.
+
 ## Photos
 
 The gallery loads its photos from [Unsplash](https://unsplash.com) by URL, used under the Unsplash License. Each tile's caption credits the photographer and links to the original.
