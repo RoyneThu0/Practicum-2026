@@ -16,7 +16,7 @@ function Gallery({ shortlist, onShortlistChange }) {
       : photos.filter((photo) => photo.category === activeCategory);
 
   return (
-    <section id="work" aria-labelledby="work-title" className="scroll-mt-16 pb-12">
+    <section id="work" aria-labelledby="work-title" className="scroll-mt-16 pb-12 sm:pb-16 lg:pb-24">
       <Container>
         <h2 id="work-title" className="sr-only">
           Selected work
@@ -34,7 +34,7 @@ function Gallery({ shortlist, onShortlistChange }) {
           </p>
         </div>
 
-        <ul className="grid grid-flow-dense auto-rows-[14rem] grid-cols-1 gap-2">
+        <ul className="grid grid-flow-dense auto-rows-[14rem] grid-cols-1 gap-2 sm:auto-rows-[clamp(11rem,19vw,17rem)] sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
           {visiblePhotos.map((photo, index) => (
             <PhotoTile
               key={photo.id}
