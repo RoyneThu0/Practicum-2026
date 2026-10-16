@@ -65,7 +65,7 @@ function BookingForm({ shortlistedTitles = [], onClearShortlist }) {
           onSubmit={handleSubmit}
           className="flex min-w-0 flex-col gap-4 rounded border border-line bg-paper-raised p-5 sm:p-8"
         >
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row">
             <FormField id="name" label="Name">
               <input id="name" name="name" type="text" autoComplete="name" required className={inputClass} />
             </FormField>
@@ -74,7 +74,7 @@ function BookingForm({ shortlistedTitles = [], onClearShortlist }) {
             </FormField>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row">
             <FormField id="shoot-type" label="Type of shoot">
               <select id="shoot-type" name="shoot_type" required className={inputClass}>
                 <option value="">Choose one</option>
