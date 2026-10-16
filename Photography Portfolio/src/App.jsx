@@ -19,7 +19,7 @@ function App() {
 
   return (
     <>
-      <Header />
+      <Header shortlistCount={shortlist.length} />
       <main id="main">
         <Hero />
         <Gallery shortlist={shortlist} onShortlistChange={setShortlisted} />

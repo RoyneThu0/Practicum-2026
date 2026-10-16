@@ -5,7 +5,7 @@ const navLinks = [
   { href: "#about", label: "About" },
 ];
 
-function Header() {
+function Header({ shortlistCount = 0 }) {
   return (
     <>
       <a
@@ -33,6 +33,14 @@ function Header() {
                   </a>
                 </li>
               ))}
+              <li>
+                <a
+                  href="#book"
+                  className="border-b border-transparent py-1.5 text-sm font-semibold transition-colors hover:border-current"
+                >
+                  Shortlist ({shortlistCount})
+                </a>
+              </li>
               <li>
                 <a
                   href="#book"
