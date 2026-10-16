@@ -1,4 +1,5 @@
 import { imageFor } from "../lib/unsplash.js";
+import ShortlistToggle from "./ShortlistToggle.jsx";
 
 // Grid spans for each tile shape. On a phone there is one column,
 // so nothing spans columns (that would make the page scroll sideways).
@@ -9,7 +10,7 @@ const shapeClasses = {
   feature: "row-span-2",
 };
 
-function PhotoTile({ photo, eager = false }) {
+function PhotoTile({ photo, eager = false, shortlist, onShortlistChange }) {
   const image = imageFor(photo);
 
   return (
@@ -38,6 +39,15 @@ function PhotoTile({ photo, eager = false }) {
           </figcaption>
         </figure>
       </a>
+
+      {/* A sibling of the link, not inside it: a button inside an <a> is invalid HTML. */}
+      <div className="absolute top-2 right-2 z-10">
+        <ShortlistToggle
+          value={shortlist.includes(photo.id)}
+          onChange={(next) => onShortlistChange(photo.id, next)}
+          label={photo.title}
+        />
+      </div>
     </li>
   );
 }

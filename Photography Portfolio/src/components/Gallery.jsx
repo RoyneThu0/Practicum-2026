@@ -4,7 +4,7 @@ import Container from "./Container.jsx";
 import FilterBar from "./FilterBar.jsx";
 import PhotoTile from "./PhotoTile.jsx";
 
-function Gallery() {
+function Gallery({ shortlist, onShortlistChange }) {
   // State holds only the chosen category. The filtered list is not stored:
   // it is recalculated from photos + activeCategory on every render,
   // so it can never get out of step with the buttons.
@@ -36,7 +36,13 @@ function Gallery() {
 
         <ul className="grid grid-flow-dense auto-rows-[14rem] grid-cols-1 gap-2">
           {visiblePhotos.map((photo, index) => (
-            <PhotoTile key={photo.id} photo={photo} eager={index === 0} />
+            <PhotoTile
+              key={photo.id}
+              photo={photo}
+              eager={index === 0}
+              shortlist={shortlist}
+              onShortlistChange={onShortlistChange}
+            />
           ))}
         </ul>
       </Container>
