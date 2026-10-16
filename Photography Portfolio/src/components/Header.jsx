@@ -16,13 +16,13 @@ function Header({ shortlistCount = 0 }) {
       </a>
 
       <header className="sticky top-0 z-10 border-b border-line bg-paper/90 backdrop-blur-md">
-        <Container className="flex min-h-16 flex-wrap items-center justify-between gap-x-6 gap-y-2 py-2.5">
-          <a href="#top" className="font-display text-2xl leading-none no-underline">
+        <Container className="flex min-h-16 flex-wrap items-center justify-between gap-x-6 gap-y-2 py-2.5 sm:gap-x-10">
+          <a href="#top" className="font-display text-2xl leading-none no-underline sm:text-[1.65rem]">
             Practicum Photography
           </a>
 
           <nav aria-label="Main">
-            <ul className="flex flex-wrap items-center gap-x-5 gap-y-1">
+            <ul className="flex flex-wrap items-center gap-x-5 gap-y-1 sm:gap-x-6">
               {navLinks.map((link) => (
                 <li key={link.href}>
                   <a
