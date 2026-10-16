@@ -1,13 +1,14 @@
 import { imageFor } from "../lib/unsplash.js";
 import ShortlistToggle from "./ShortlistToggle.jsx";
 
-// Grid spans for each tile shape. On a phone there is one column,
-// so nothing spans columns (that would make the page scroll sideways).
+// Grid spans for each tile shape. Column spans only start at sm, where the
+// grid has 2+ columns: on a phone's single column a col-span-2 would add an
+// implicit second column and make the page scroll sideways.
 const shapeClasses = {
   single: "",
   tall: "row-span-2",
-  wide: "",
-  feature: "row-span-2",
+  wide: "sm:col-span-2",
+  feature: "row-span-2 sm:col-span-2",
 };
 
 function PhotoTile({ photo, eager = false, isShortlisted, onShortlistChange }) {
