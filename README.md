@@ -54,6 +54,18 @@ Practicum-2026/
 - **`src/lib/unsplash.js`** turns a photo's `unsplashId` and `shape` into a `src`, a `srcSet` and a `sizes` attribute, so each tile downloads an image cropped to its own shape and phones get smaller files.
 - **`src/index.css`** holds the design tokens in Tailwind's `@theme` block (`--color-paper`, `--color-ink`, `--color-accent`, the three fonts, …). Each one becomes utilities such as `bg-paper`, `text-ink` and `font-display`. Dark mode follows the visitor's system setting: a `prefers-color-scheme: dark` block swaps the token values and every utility follows.
 
+## State: the category filter and the shortlist
+
+**Category filter (`useState` in `Gallery.jsx`).** The only thing stored is the chosen category: `const [activeCategory, setActiveCategory] = useState("all")`. The list of visible photos is not stored; it is worked out from `photos` and `activeCategory` on every render, so it can never get out of step with the buttons. `FilterBar` draws one button per category with `aria-pressed` on the active one and reports clicks through an `onChange` prop. Above the grid, "Showing n of 8" counts the visible photos.
+
+**Shortlist (`ShortlistToggle.jsx`, a controlled component).** `ShortlistToggle` takes three props, `value`, `onChange` and `label`, and owns no state. It shows whatever `value` it is given, and when clicked it calls `onChange(!value)`; the parent decides and passes the new value back. Every `PhotoTile` renders one, as a sibling of the tile's link rather than inside it (a button inside an `<a>` is invalid HTML).
+
+The shortlist itself, an array of photo ids, lives in `App.jsx`, not in `Gallery` or the tiles. That way it:
+
+- survives filtering, because hiding a tile doesn't throw away its state;
+- reaches `Header`, which shows "Shortlist (n)";
+- reaches `BookingForm`, which lists the shortlisted titles, sends them with the request and has a Clear shortlist button.
+
 ## Photos
 
 The gallery loads its photos from [Unsplash](https://unsplash.com) by URL, used under the Unsplash License. Each tile's caption credits the photographer and links to the original.
