@@ -1,2 +1,8 @@
 # macOS Finder metadata
 .DS_Store
+
+# Secrets: real values live in .env files that never get committed.
+# Each app has a committed .env.example showing which variables it needs.
+.env
+.env.*
+!.env.example

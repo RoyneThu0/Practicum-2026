@@ -1,3 +1,5 @@
+// Load variables from server/.env into process.env (on Railway they come from the dashboard instead).
+import "dotenv/config";
 import express from "express";
 
 const app = express();
