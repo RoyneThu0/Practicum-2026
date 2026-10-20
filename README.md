@@ -7,14 +7,14 @@ A single-page landscape photography portfolio. Assignment 1 was plain HTML and C
 You need Node.js 20.19+ or 22.12+ (what Vite 8 requires).
 
 ```sh
-cd "Photography Portfolio"
+cd client
 npm install
 npm run dev
 ```
 
 Then open the address Vite prints (usually http://localhost:5173).
 
-- `npm run build` builds the production site into `Photography Portfolio/dist/`.
+- `npm run build` builds the production site into `client/dist/`.
 - `npm run preview` serves that build locally.
 - `npm run lint` checks the code with oxlint.
 
@@ -23,7 +23,7 @@ Then open the address Vite prints (usually http://localhost:5173).
 ```
 Practicum-2026/
 ├── README.md
-└── Photography Portfolio/
+└── client/
     ├── index.html            page shell: fonts, favicon, the #root div
     ├── vite.config.js        React + Tailwind plugins
     ├── public/
@@ -87,7 +87,7 @@ The page was checked at 320, 375, 414, 640, 768, 1024, 1280 and 1440px wide, aft
 
 The gallery loads its photos from [Unsplash](https://unsplash.com) by URL, used under the Unsplash License. Each tile's caption credits the photographer and links to the original.
 
-To use your own photos instead, put the files in `Photography Portfolio/public/images/`. Anything in `public/` is served from the site root, so `public/images/dune.jpg` is referenced as `/images/dune.jpg`. Right now `imageFor()` in `src/lib/unsplash.js` always builds Unsplash URLs, so give the photo object a path (for example `src: "/images/dune.jpg"`) and have `imageFor()` return that path when it is set. Any shape of photo works: `object-cover` crops it to fit the tile.
+To use your own photos instead, put the files in `client/public/images/`. Anything in `public/` is served from the site root, so `public/images/dune.jpg` is referenced as `/images/dune.jpg`. Right now `imageFor()` in `src/lib/unsplash.js` always builds Unsplash URLs, so give the photo object a path (for example `src: "/images/dune.jpg"`) and have `imageFor()` return that path when it is set. Any shape of photo works: `object-cover` crops it to fit the tile.
 
 ## Booking form
 
