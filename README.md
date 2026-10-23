@@ -94,7 +94,7 @@ The `/api/auth/*` routes are handled by Better Auth (`server/src/auth.js`, mount
 
 1. **Sign up / sign in.** `AuthDialog.jsx` posts the form to Better Auth through `client/src/lib/auth.js`. Better Auth hashes the password (scrypt), creates the `user`, `account` and `session` rows, and replies with a `Set-Cookie` header.
 2. **The cookie.** It's `httpOnly`, so page JavaScript can't read it, and `Secure` in production. The browser sends it back with every `/api` request automatically.
-3. **Surviving a refresh.** When the page loads, `App.jsx` calls `GET /api/auth/get-session`. The cookie comes with it, Better Auth finds the session in the database, and returns the user. `Header` then shows "Hi, name" and **Sign out** instead of **Sign in**.
+3. **Surviving a refresh.** When the page loads, `App.jsx` calls `GET /api/auth/get-session`. The cookie comes with it, Better Auth finds the session in the database, and returns the user. `Header` then swaps the **Sign in** button for a profile menu at the far left ("Hi, name"), whose dropdown shows your name, email and **Sign out**.
 4. **Sign out.** `POST /api/auth/sign-out` deletes the session row and clears the cookie.
 
 ## Deploying
@@ -142,7 +142,8 @@ Practicum-2026/
         ├── lib/unsplash.js     builds src / srcSet / sizes for each photo
         └── components/
             ├── Container.jsx        shared centred max-width wrapper
-            ├── Header.jsx           brand, nav, shortlist count, Sign in / Sign out
+            ├── Header.jsx           brand, nav, shortlist count, Sign in
+            ├── ProfileMenu.jsx      signed-in user: avatar, "Hi, name", dropdown with Sign out
             ├── AuthDialog.jsx       sign-in / create-account popup
             ├── Hero.jsx             the h1 and intro
             ├── Gallery.jsx          filter state + the photo grid
