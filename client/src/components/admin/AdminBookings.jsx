@@ -1,42 +1,19 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { bookingStatuses } from "../../data/bookingOptions.js";
-import { api } from "../../lib/api.js";
 import FilterBar from "../FilterBar.jsx";
 import BookingCard from "./BookingCard.jsx";
 
 // The Bookings tab: every request sent from the "Book a shoot" form, newest
-// first, filterable by status. All bookings are loaded once and filtered
-// here, so the counts on the filter buttons are always right.
-function AdminBookings({ onCountsChange, blockedDates, onBlockDate }) {
-  const [bookings, setBookings] = useState([]);
-  const [status, setStatus] = useState("loading");
+// first, filterable by status. The bookings themselves live in AdminPage,
+// because the Availability tab's calendar shows them too; this tab only
+// filters and displays them, and passes changes back up.
+function AdminBookings({ bookings, status, onUpdate, onDelete, blockedDates, onBlockDate }) {
   const [filter, setFilter] = useState("new");
   const [notice, setNotice] = useState("");
 
-  useEffect(() => {
-    api("/api/admin/bookings")
-      .then((rows) => {
-        setBookings(rows);
-        setStatus("ready");
-      })
-      .catch(() => setStatus("error"));
-  }, []);
-
-  // Tell AdminPage how many are new, for the badge on the tab.
-  const newCount = bookings.filter((b) => b.status === "new").length;
-  useEffect(() => {
-    if (status === "ready") onCountsChange(newCount);
-  }, [newCount, status, onCountsChange]);
-
-  async function updateBooking(id, changes) {
-    const updated = await api(`/api/admin/bookings/${id}`, { method: "PATCH", body: changes });
-    setBookings((prev) => prev.map((b) => (b.id === id ? updated : b)));
-  }
-
   async function deleteBooking(id) {
     try {
-      await api(`/api/admin/bookings/${id}`, { method: "DELETE" });
-      setBookings((prev) => prev.filter((b) => b.id !== id));
+      await onDelete(id);
       setNotice("Booking deleted.");
     } catch (err) {
       setNotice(`Couldn't delete the booking: ${err.message}`);
@@ -75,7 +52,7 @@ function AdminBookings({ onCountsChange, blockedDates, onBlockDate }) {
             <BookingCard
               key={booking.id}
               booking={booking}
-              onChange={updateBooking}
+              onChange={onUpdate}
               onDelete={deleteBooking}
               isDateBlocked={blockedDates.some((blocked) => blocked.day === booking.preferredDate)}
               onBlockDate={onBlockDate}

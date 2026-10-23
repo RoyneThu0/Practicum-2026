@@ -125,6 +125,8 @@ Go to `/admin`, or choose **Admin panel** in the profile menu, which only appear
 
 **Bookings tab.** Every request from the Book a shoot form, newest first, filtered by status with a count on each filter. Each booking shows the sender's details, message and shortlisted photos. Changing the status dropdown saves straight away; private notes have their own Save button. The tab shows how many bookings are new.
 
+**Calendar (Availability tab).** A month calendar shows every booking request as a dot on its preferred date, coloured by status (new, contacted, booked, declined), with up to three dots and "+n" for more. Blocked days are shaded and struck through, and today has a ring. Pick a day to see its requests and **Block this day** or **Unblock this day**; ← and → change month, and the arrow keys move between days. Bookings and blocked dates are loaded once in `AdminPage.jsx` and shared by all three tabs, so a status changed on the Bookings tab shows on the calendar straight away.
+
 **Availability tab.** Block a single day, or a range with From and To, with an optional private note such as "Booked: Laikipia lodge". Upcoming blocked days are listed with an **Unblock** button. On the Bookings tab, a booking with a future preferred date has a **Block this date** button, so a confirmed shoot can close that day in one click. "Today" always means today in Nairobi, on the server and in the browser.
 
 **Photos tab.** The gallery photos in order. Use ↑ and ↓ to reorder them, **Edit** to change one, **Delete** (with a Yes/Cancel check) to remove one, and **Add a photo** for a new one. In the Unsplash field you can paste either the `photo-…` id or the whole `images.unsplash.com` address, and the form shows a preview. Changes appear on the public site the next time it loads.
@@ -207,9 +209,11 @@ Practicum-2026/
             ├── Eyebrow.jsx          small section label
             ├── Footer.jsx
             └── admin/
-                ├── AdminPage.jsx       /admin: sign-in or not-an-admin messages; Bookings, Availability and Photos tabs
+                ├── AdminPage.jsx       /admin: loads bookings + blocked dates; Bookings, Availability and Photos tabs
                 ├── AdminBookings.jsx   status filter + list of bookings
+                ├── AdminCalendar.jsx   month calendar: booking dots, blocked days, day panel
                 ├── AdminAvailability.jsx   block / unblock days
+                ├── statusStyles.js     status colours shared by cards and calendar
                 ├── BookingCard.jsx     one booking: details, status, private notes, Block this date, delete
                 ├── AdminPhotos.jsx     most shortlisted + ordered photo list: move, edit, delete, add
                 ├── PhotoEditor.jsx     add / edit form with a live preview

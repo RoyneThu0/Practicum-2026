@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api.js";
 import Container from "../Container.jsx";
 import ProfileMenu from "../ProfileMenu.jsx";
 import AdminAvailability from "./AdminAvailability.jsx";
 import AdminBookings from "./AdminBookings.jsx";
+import AdminCalendar from "./AdminCalendar.jsx";
 import AdminPhotos from "./AdminPhotos.jsx";
 
 const tabs = [
@@ -22,17 +23,25 @@ const tabs = [
 function AdminPage({ me, onSignInClick, onSignOut }) {
   // Remember the open tab in the address (#photos), so a refresh keeps it.
   const [tab, setTab] = useState(() => tabs.find((t) => `#${t.id}` === window.location.hash)?.id ?? "bookings");
-  const [newCount, setNewCount] = useState(null);
-  const handleCounts = useCallback((count) => setNewCount(count), []);
 
-  // Blocked dates are shared by two tabs: Availability lists and edits them,
-  // and each booking card offers "Block this date". So they live here.
+  // Bookings and blocked dates are both used by two tabs: Bookings lists the
+  // requests and offers "Block this date"; Availability's calendar shows the
+  // requests as dots on their days and lists or edits the blocked days.
+  // So both live here, loaded once, and every tab sees the same data.
+  const [bookings, setBookings] = useState([]);
+  const [bookingsStatus, setBookingsStatus] = useState("loading");
   const [blockedDates, setBlockedDates] = useState([]);
   const [blockedStatus, setBlockedStatus] = useState("loading");
   const isAdmin = Boolean(me?.isAdmin);
 
   useEffect(() => {
     if (!isAdmin) return;
+    api("/api/admin/bookings")
+      .then((rows) => {
+        setBookings(rows);
+        setBookingsStatus("ready");
+      })
+      .catch(() => setBookingsStatus("error"));
     api("/api/admin/blocked-dates")
       .then((rows) => {
         setBlockedDates(rows);
@@ -40,6 +49,17 @@ function AdminPage({ me, onSignInClick, onSignOut }) {
       })
       .catch(() => setBlockedStatus("error"));
   }, [isAdmin]);
+
+  const newCount = bookings.filter((b) => b.status === "new").length;
+
+  async function updateBooking(id, changes) {
+    const updated = await api(`/api/admin/bookings/${id}`, { method: "PATCH", body: changes });
+    setBookings((prev) => prev.map((b) => (b.id === id ? updated : b)));
+  }
+  async function deleteBooking(id) {
+    await api(`/api/admin/bookings/${id}`, { method: "DELETE" });
+    setBookings((prev) => prev.filter((b) => b.id !== id));
+  }
 
   // Both reply with the full upcoming list, so state is simply replaced.
   async function blockDates({ from, to = from, note = "" }) {
@@ -109,7 +129,7 @@ function AdminPage({ me, onSignInClick, onSignOut }) {
 
           {me?.isAdmin && (
             <>
-              <div role="tablist" aria-label="Admin sections" onKeyDown={handleTabKeys} className="mt-8 mb-6 flex gap-1 border-b border-line">
+              <div role="tablist" aria-label="Admin sections" onKeyDown={handleTabKeys} className="mt-8 mb-6 flex gap-1 overflow-x-auto border-b border-line">
                 {tabs.map((t) => (
                   <button
                     key={t.id}
@@ -120,7 +140,7 @@ function AdminPage({ me, onSignInClick, onSignOut }) {
                     aria-controls={`panel-${t.id}`}
                     tabIndex={tab === t.id ? 0 : -1}
                     onClick={() => openTab(t.id)}
-                    className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 font-semibold transition-colors ${
+                    className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-2.5 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors sm:px-4 sm:text-base ${
                       tab === t.id ? "border-accent text-ink" : "border-transparent text-ink-soft hover:text-ink"
                     }`}
                   >
@@ -136,9 +156,29 @@ function AdminPage({ me, onSignInClick, onSignOut }) {
 
               {/* Both panels stay mounted so switching tabs doesn't reload them. */}
               <section id="panel-bookings" role="tabpanel" aria-labelledby="tab-bookings" hidden={tab !== "bookings"}>
-                <AdminBookings onCountsChange={handleCounts} blockedDates={blockedDates} onBlockDate={blockDates} />
+                <AdminBookings
+                  bookings={bookings}
+                  status={bookingsStatus}
+                  onUpdate={updateBooking}
+                  onDelete={deleteBooking}
+                  blockedDates={blockedDates}
+                  onBlockDate={blockDates}
+                />
               </section>
-              <section id="panel-availability" role="tabpanel" aria-labelledby="tab-availability" hidden={tab !== "availability"}>
+              <section
+                id="panel-availability"
+                role="tabpanel"
+                aria-labelledby="tab-availability"
+                hidden={tab !== "availability"}
+                className="flex flex-col gap-8"
+              >
+                <AdminCalendar
+                  bookings={bookings}
+                  blockedDates={blockedDates}
+                  onBlock={blockDates}
+                  onUnblock={unblockDate}
+                  onOpenBookings={() => openTab("bookings")}
+                />
                 <AdminAvailability
                   blockedDates={blockedDates}
                   status={blockedStatus}

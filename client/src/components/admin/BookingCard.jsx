@@ -3,14 +3,7 @@ import { bookingStatuses } from "../../data/bookingOptions.js";
 import { formatDay, todayInNairobi } from "../../lib/dates.js";
 import FormField, { inputClass } from "../FormField.jsx";
 import ConfirmButton from "./ConfirmButton.jsx";
-
-// Status colours: each status gets its own chip so the list can be scanned at a glance.
-const statusClasses = {
-  new: "bg-accent text-accent-ink",
-  contacted: "bg-amber-200 text-amber-950 dark:bg-amber-300/20 dark:text-amber-200",
-  booked: "bg-emerald-200 text-emerald-950 dark:bg-emerald-300/20 dark:text-emerald-200",
-  declined: "bg-line text-ink-soft",
-};
+import { statusChipClasses } from "./statusStyles.js";
 
 const received = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -44,7 +37,7 @@ function BookingCard({ booking, onChange, onDelete, isDateBlocked, onBlockDate }
       <div className="min-w-0">
         <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h3 className="font-display text-2xl leading-tight">{booking.name}</h3>
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${statusClasses[booking.status]}`}>
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${statusChipClasses[booking.status]}`}>
             {bookingStatuses.find((s) => s.id === booking.status)?.label}
           </span>
           {booking.hasAccount && <span className="font-mono text-xs text-ink-soft">has an account</span>}

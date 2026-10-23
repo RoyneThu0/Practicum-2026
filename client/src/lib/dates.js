@@ -21,3 +21,10 @@ const shortFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: 
 export function formatDay(day, style = "long") {
   return (style === "short" ? shortFormat : longFormat).format(new Date(`${day}T00:00:00Z`));
 }
+
+// "2026-12-12" + 3 days -> "2026-12-15" (negative numbers go back).
+export function addDays(day, count) {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + count);
+  return date.toISOString().slice(0, 10);
+}
