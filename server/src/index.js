@@ -4,6 +4,7 @@ import express from "express";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./auth.js";
 import photosRouter from "./routes/photos.js";
+import shortlistRouter from "./routes/shortlist.js";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -29,6 +30,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/photos", photosRouter);
+app.use("/api/shortlist", shortlistRouter); // signed-in users only
 
 // Anything that throws ends up here: log it, send a plain JSON error.
 app.use((error, req, res, next) => {
