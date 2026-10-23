@@ -61,7 +61,7 @@ function ProfileMenu({ user, onSignOut }) {
           id="profile-menu"
           role="menu"
           aria-label="Account"
-          className="absolute left-0 top-full z-20 mt-2 w-60 rounded border border-line bg-paper-raised p-1.5 shadow-lg"
+          className="absolute right-0 top-full z-20 mt-2 w-60 rounded border border-line bg-paper-raised p-1.5 shadow-lg"
         >
           <div className="border-b border-line px-3 pb-2.5 pt-2">
             <p className="font-semibold">{user.name}</p>

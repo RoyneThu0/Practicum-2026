@@ -7,7 +7,8 @@ const navLinks = [
 ];
 
 // user: the signed-in user, or null. The header only shows it; App decides.
-// Signed in -> ProfileMenu (far left) with Sign out inside. Signed out -> a Sign in button in the nav.
+// Layout: brand and nav links on the left; the far right holds ProfileMenu
+// (signed in, with Sign out inside) or a Sign in button (signed out).
 function Header({ shortlistCount = 0, user, onSignInClick, onSignOutClick }) {
   return (
     <>
@@ -19,16 +20,13 @@ function Header({ shortlistCount = 0, user, onSignInClick, onSignOutClick }) {
       </a>
 
       <header className="sticky top-0 z-10 border-b border-line bg-paper/90 backdrop-blur-md">
-        <Container className="flex min-h-16 flex-wrap items-center justify-between gap-x-6 gap-y-2 py-2.5 sm:gap-x-10">
-          {/* Signed in: the profile menu sits at the far left, before the brand. */}
-          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-            {user && <ProfileMenu user={user} onSignOut={onSignOutClick} />}
-            <a href="#top" className="font-display text-2xl leading-none no-underline sm:text-[1.65rem]">
-              Practicum Photography
-            </a>
-          </div>
+        <Container className="flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 py-2.5 sm:gap-x-10">
+          <a href="#top" className="font-display text-[1.3rem] leading-none no-underline min-[23rem]:text-2xl sm:text-[1.65rem]">
+            Practicum Photography
+          </a>
 
-          <nav aria-label="Main">
+          {/* Below lg the links get their own row under the brand; from lg up they sit right after it. */}
+          <nav aria-label="Main" className="order-last w-full lg:order-none lg:w-auto">
             <ul className="flex flex-wrap items-center gap-x-5 gap-y-1 sm:gap-x-6">
               {navLinks.map((link) => (
                 <li key={link.href}>
@@ -48,17 +46,6 @@ function Header({ shortlistCount = 0, user, onSignInClick, onSignOutClick }) {
                   Shortlist ({shortlistCount})
                 </a>
               </li>
-              {!user && (
-                <li>
-                  <button
-                    type="button"
-                    onClick={onSignInClick}
-                    className="border-b border-transparent py-1.5 text-sm font-semibold transition-colors hover:border-current"
-                  >
-                    Sign in
-                  </button>
-                </li>
-              )}
               <li>
                 <a
                   href="#book"
@@ -69,6 +56,21 @@ function Header({ shortlistCount = 0, user, onSignInClick, onSignOutClick }) {
               </li>
             </ul>
           </nav>
+
+          {/* Far right: the profile menu when signed in, otherwise Sign in. */}
+          <div className="ml-auto">
+            {user ? (
+              <ProfileMenu user={user} onSignOut={onSignOutClick} />
+            ) : (
+              <button
+                type="button"
+                onClick={onSignInClick}
+                className="rounded-full border border-line px-3.5 py-1.5 text-sm font-semibold transition-colors hover:border-ink"
+              >
+                Sign in
+              </button>
+            )}
+          </div>
         </Container>
       </header>
     </>
