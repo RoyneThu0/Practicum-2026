@@ -5,7 +5,8 @@ const navLinks = [
   { href: "#about", label: "About" },
 ];
 
-function Header({ shortlistCount = 0 }) {
+// user: the signed-in user, or null. The header only shows it; App decides.
+function Header({ shortlistCount = 0, user, onSignInClick, onSignOutClick }) {
   return (
     <>
       <a
@@ -40,6 +41,28 @@ function Header({ shortlistCount = 0 }) {
                 >
                   Shortlist ({shortlistCount})
                 </a>
+              </li>
+              <li>
+                {user ? (
+                  <span className="flex items-center gap-x-3 text-sm">
+                    <span className="hidden text-ink-soft sm:inline">Hi, {user.name.split(" ")[0]}</span>
+                    <button
+                      type="button"
+                      onClick={onSignOutClick}
+                      className="border-b border-transparent py-1.5 font-semibold transition-colors hover:border-current"
+                    >
+                      Sign out
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onSignInClick}
+                    className="border-b border-transparent py-1.5 text-sm font-semibold transition-colors hover:border-current"
+                  >
+                    Sign in
+                  </button>
+                )}
               </li>
               <li>
                 <a
