@@ -1,13 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import About from "./components/About.jsx";
 import BookingForm from "./components/BookingForm.jsx";
 import Footer from "./components/Footer.jsx";
 import Gallery from "./components/Gallery.jsx";
 import Header from "./components/Header.jsx";
 import Hero from "./components/Hero.jsx";
-import photos from "./data/photos.js";
+import { api } from "./lib/api.js";
 
 function App() {
+  // The photos now come from the API (Postgres), not a hardcoded file.
+  // status is "loading" until the request finishes, then "ready" or "error".
+  const [photos, setPhotos] = useState([]);
+  const [photosStatus, setPhotosStatus] = useState("loading");
+
+  // Runs once when the page loads ([] = no dependencies, so never again).
+  useEffect(() => {
+    api("/api/photos")
+      .then((rows) => {
+        setPhotos(rows);
+        setPhotosStatus("ready");
+      })
+      .catch(() => setPhotosStatus("error"));
+  }, []);
+
   // The shortlist lives here (not in Gallery) so it survives filter changes
   // and can be shared with the header and booking form. It holds photo ids.
   const [shortlist, setShortlist] = useState([]);
@@ -28,7 +43,12 @@ function App() {
       <Header shortlistCount={shortlist.length} />
       <main id="main">
         <Hero />
-        <Gallery shortlist={shortlist} onShortlistChange={setShortlisted} />
+        <Gallery
+          photos={photos}
+          status={photosStatus}
+          shortlist={shortlist}
+          onShortlistChange={setShortlisted}
+        />
         <About />
         <BookingForm
           shortlistedTitles={shortlistedTitles}

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import photos, { categories } from "../data/photos.js";
+import { categories } from "../data/categories.js";
 import Container from "./Container.jsx";
 import FilterBar from "./FilterBar.jsx";
 import PhotoTile from "./PhotoTile.jsx";
 
-function Gallery({ shortlist, onShortlistChange }) {
+function Gallery({ photos, status, shortlist, onShortlistChange }) {
   // State holds only the chosen category. The filtered list is not stored:
   // it is recalculated from photos + activeCategory on every render,
   // so it can never get out of step with the buttons.
@@ -30,9 +30,19 @@ function Gallery({ shortlist, onShortlistChange }) {
           />
 
           <p aria-live="polite" className="font-mono text-xs text-ink-soft">
-            Showing {visiblePhotos.length} of {photos.length}
+            {status === "ready" && `Showing ${visiblePhotos.length} of ${photos.length}`}
           </p>
         </div>
+
+        {status === "loading" && (
+          <p className="py-16 text-center text-ink-soft">Loading photos…</p>
+        )}
+
+        {status === "error" && (
+          <p role="alert" className="rounded border border-line bg-paper-raised px-4 py-6 text-center">
+            The photos couldn't be loaded right now. Please refresh to try again.
+          </p>
+        )}
 
         <ul className="grid grid-flow-dense auto-rows-[14rem] grid-cols-1 gap-2 sm:auto-rows-[clamp(11rem,19vw,17rem)] sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
           {visiblePhotos.map((photo, index) => (
