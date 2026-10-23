@@ -2,6 +2,11 @@
 
 A single-page landscape photography portfolio. Assignment 1 was plain HTML and CSS; Assignment 2 rebuilt it with Vite, React and Tailwind CSS v4. Assignment 3 adds a real backend: an Express API, a Neon Postgres database, signup and login with Better Auth, and deployment to Render (API) and Vercel (site). Plain JavaScript throughout, no TypeScript.
 
+## Live
+
+- Site: https://practicum-2026.vercel.app
+- API: https://practicum-photography-api.onrender.com/api/photos
+
 ## How it fits together
 
 ```
