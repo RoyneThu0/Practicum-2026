@@ -7,7 +7,7 @@ import BookingCard from "./BookingCard.jsx";
 // The Bookings tab: every request sent from the "Book a shoot" form, newest
 // first, filterable by status. All bookings are loaded once and filtered
 // here, so the counts on the filter buttons are always right.
-function AdminBookings({ onCountsChange }) {
+function AdminBookings({ onCountsChange, blockedDates, onBlockDate }) {
   const [bookings, setBookings] = useState([]);
   const [status, setStatus] = useState("loading");
   const [filter, setFilter] = useState("new");
@@ -72,7 +72,14 @@ function AdminBookings({ onCountsChange }) {
       ) : (
         <div className="flex flex-col gap-4">
           {visible.map((booking) => (
-            <BookingCard key={booking.id} booking={booking} onChange={updateBooking} onDelete={deleteBooking} />
+            <BookingCard
+              key={booking.id}
+              booking={booking}
+              onChange={updateBooking}
+              onDelete={deleteBooking}
+              isDateBlocked={blockedDates.some((blocked) => blocked.day === booking.preferredDate)}
+              onBlockDate={onBlockDate}
+            />
           ))}
         </div>
       )}

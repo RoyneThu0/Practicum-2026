@@ -44,11 +44,34 @@ function parseId(req, res) {
   return id;
 }
 
-// GET /api/admin/photos -> every photo in gallery order, with slug and sortOrder.
+// Every photo in gallery order, plus how popular it is:
+//   shortlistCount  how many signed-in visitors have it in their saved shortlist
+//   bookingCount    how many booking requests included it
+// (Guests' shortlists only live in their browser, so they can't be counted
+// until they sign in or send a booking.)
+async function listPhotos() {
+  const { rows } = await pool.query(
+    `SELECT p.id, p.slug, p.title, p.alt, p.category, p.shape,
+            p.unsplash_id AS "unsplashId", p.credit, p.link,
+            p.sort_order AS "sortOrder",
+            COALESCE(s.count, 0)::int AS "shortlistCount",
+            COALESCE(b.count, 0)::int AS "bookingCount"
+       FROM photos p
+       LEFT JOIN (SELECT photo_id, COUNT(*) AS count FROM shortlists GROUP BY photo_id) s
+              ON s.photo_id = p.id
+       LEFT JOIN (SELECT photo_id, COUNT(*) AS count
+                    FROM bookings, unnest(photo_ids) AS photo_id
+                   GROUP BY photo_id) b
+              ON b.photo_id = p.id
+      ORDER BY p.sort_order, p.id`
+  );
+  return rows;
+}
+
+// GET /api/admin/photos -> every photo in gallery order, with slug, sortOrder and counts.
 router.get("/", async (req, res, next) => {
   try {
-    const { rows } = await pool.query(`SELECT ${columns} FROM photos ORDER BY sort_order, id`);
-    res.json(rows);
+    res.json(await listPhotos());
   } catch (error) {
     next(error);
   }
@@ -131,8 +154,7 @@ router.post("/:id/move", async (req, res, next) => {
     if (rowCount) await client.query("UPDATE photos SET sort_order = $1 WHERE id = $2", [target, id]);
     await client.query("COMMIT");
 
-    const { rows } = await pool.query(`SELECT ${columns} FROM photos ORDER BY sort_order, id`);
-    res.json(rows);
+    res.json(await listPhotos());
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     next(error);

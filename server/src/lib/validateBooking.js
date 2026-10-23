@@ -1,3 +1,4 @@
+import { isIsoDate } from "./dates.js";
 import { shootTypes } from "./options.js";
 
 // Checks a booking request from the public form and returns { booking, errors }.
@@ -26,13 +27,10 @@ export default function validateBooking(input = {}) {
 
   if (!shootTypes.includes(booking.shootType)) errors.shootType = "Choose a type of shoot";
 
-  if (booking.preferredDate) {
-    // Round-trip through Date so impossible days like 2026-02-30 are caught too.
-    const date = new Date(`${booking.preferredDate}T00:00:00Z`);
-    const isRealDate = !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === booking.preferredDate;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(booking.preferredDate) || !isRealDate) {
-      errors.preferredDate = "Use a real date";
-    }
+  // Whether the date is in the past or blocked is checked in routes/bookings.js,
+  // because that needs the database.
+  if (booking.preferredDate && !isIsoDate(booking.preferredDate)) {
+    errors.preferredDate = "Use a real date";
   }
 
   if (!booking.message) errors.message = "Tell me where it is and what you need";

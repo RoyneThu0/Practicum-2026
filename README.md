@@ -17,7 +17,7 @@ browser ──► Vercel (the React site, built by Vite)
             Render (Express API, server/)
               │  pg connection pool
               ▼
-            Neon (Postgres: photos, bookings, shortlists, and Better Auth's user/session tables)
+            Neon (Postgres: photos, bookings, blocked dates, shortlists, and Better Auth's user/session tables)
 ```
 
 The browser only ever talks to the Vercel address. Vercel passes any `/api/...` request on to the Express server on Render, so the API and the site share one origin. That keeps the login cookie a normal first-party cookie and means no CORS setup is needed. In development Vite does the same job with its `server.proxy` setting.
@@ -72,6 +72,7 @@ The tables are created by the SQL files in `server/src/db/migrations/`, run in o
 - **`session`** — one row per signed-in browser. The browser's cookie holds the session token; Better Auth looks it up here to know who is making a request, and checks it hasn't expired (sessions last 30 days).
 - **`verification`** — short-lived codes for things like password resets. Required by Better Auth, unused for now.
 - **`bookings`** — one row per request sent from the Book a shoot form: name, email, shoot type, preferred date, message, status (`new`, `contacted`, `booked` or `declined`) and private admin notes. The shortlist is stored twice: `photo_ids`, and `shortlist_titles` as a snapshot, so a booking still names the photos even if one is later renamed or deleted. `user_id` links it to the sender's account when they were signed in.
+- **`blocked_dates`** — one row per day the studio isn't available, with an optional private note. The booking form and `POST /api/bookings` refuse these days.
 - **`shortlists`** — which photos each user has starred. One row per (user, photo) pair, which is also the primary key, so a photo can't be starred twice. Deleting a user or photo deletes their rows (`ON DELETE CASCADE`).
 
 `user`, `account`, `session` and `verification` belong to Better Auth: it reads and writes them itself, and our code never queries them directly. Their exact columns are what Better Auth 1.7 expects (`002_auth.sql`).
@@ -91,8 +92,9 @@ The tables are created by the SQL files in `server/src/db/migrations/`, run in o
 | `DELETE /api/shortlist/:photoId` | signed in | remove a photo |
 | `DELETE /api/shortlist` | signed in | clear your shortlist |
 | `GET /api/me` | anyone | `{ user, isAdmin }`; `user` is `null` when signed out |
-| `POST /api/bookings` | anyone | send a booking request `{ name, email, shootType, preferredDate?, message, photoIds }` |
-| `GET /api/admin/photos` | admin | every photo with its `slug` and `sortOrder` |
+| `POST /api/bookings` | anyone | send a booking request `{ name, email, shootType, preferredDate?, message, photoIds }`; past and blocked dates are refused |
+| `GET /api/availability` | anyone | `{ blockedDates: ["2026-12-12", …] }`, upcoming days only, no notes |
+| `GET /api/admin/photos` | admin | every photo with its `slug`, `sortOrder`, `shortlistCount` and `bookingCount` |
 | `POST /api/admin/photos` | admin | add a photo at the end of the gallery |
 | `PATCH /api/admin/photos/:id` | admin | edit a photo |
 | `POST /api/admin/photos/:id/move` | admin | `{ direction: "up" \| "down" }` swaps it with its neighbour |
@@ -100,6 +102,9 @@ The tables are created by the SQL files in `server/src/db/migrations/`, run in o
 | `GET /api/admin/bookings?status=new` | admin | bookings, newest first; `status` is optional |
 | `PATCH /api/admin/bookings/:id` | admin | `{ status?, adminNotes? }` |
 | `DELETE /api/admin/bookings/:id` | admin | delete a booking |
+| `GET /api/admin/blocked-dates` | admin | upcoming blocked days with their notes |
+| `POST /api/admin/blocked-dates` | admin | `{ from, to?, note? }` blocks one day or a range (up to 366 days) |
+| `DELETE /api/admin/blocked-dates/:day` | admin | unblock a day |
 
 The `/api/auth/*` routes are handled by Better Auth (`server/src/auth.js`, mounted in `server/src/index.js`). The shortlist routes go through `server/src/middleware/requireAuth.js`, which asks Better Auth for the session behind the request's cookie and answers `401` if there isn't one. The `/api/admin/*` routes go through `requireAdmin.js`, which does the same and then answers `403` unless the user's email is in `ADMIN_EMAILS`.
 
@@ -120,7 +125,11 @@ Go to `/admin`, or choose **Admin panel** in the profile menu, which only appear
 
 **Bookings tab.** Every request from the Book a shoot form, newest first, filtered by status with a count on each filter. Each booking shows the sender's details, message and shortlisted photos. Changing the status dropdown saves straight away; private notes have their own Save button. The tab shows how many bookings are new.
 
+**Availability tab.** Block a single day, or a range with From and To, with an optional private note such as "Booked: Laikipia lodge". Upcoming blocked days are listed with an **Unblock** button. On the Bookings tab, a booking with a future preferred date has a **Block this date** button, so a confirmed shoot can close that day in one click. "Today" always means today in Nairobi, on the server and in the browser.
+
 **Photos tab.** The gallery photos in order. Use ↑ and ↓ to reorder them, **Edit** to change one, **Delete** (with a Yes/Cancel check) to remove one, and **Add a photo** for a new one. In the Unsplash field you can paste either the `photo-…` id or the whole `images.unsplash.com` address, and the form shows a preview. Changes appear on the public site the next time it loads.
+
+**Most shortlisted.** At the top of the Photos tab, the five photos people like most, and on every row two counts: ★ how many signed-in visitors have saved it in their shortlist, and how many booking requests included it. Guests' stars only live in their browser, so they're counted once the guest signs in or sends a booking.
 
 **Spam.** The booking form has a hidden "website" field that people never see. Bots that fill in every field get a normal-looking reply, but nothing is saved.
 
@@ -147,17 +156,20 @@ Practicum-2026/
 │       ├── middleware/requireAdmin.js  403 unless the user is in ADMIN_EMAILS
 │       ├── lib/admins.js       reads ADMIN_EMAILS; isAdmin(user)
 │       ├── lib/options.js      allowed categories, shapes, shoot types, statuses
+│       ├── lib/dates.js        "today" in Nairobi; YYYY-MM-DD check
 │       ├── lib/validatePhoto.js / validateBooking.js   server-side form checks
 │       ├── routes/photos.js    GET /api/photos
 │       ├── routes/shortlist.js the signed-in user's shortlist
 │       ├── routes/me.js        GET /api/me (user + isAdmin)
 │       ├── routes/bookings.js  POST /api/bookings
+│       ├── routes/availability.js    GET /api/availability
 │       ├── routes/admin/photos.js    add, edit, reorder, delete photos
 │       ├── routes/admin/bookings.js  list, update, delete bookings
+│       ├── routes/admin/blockedDates.js   block and unblock days
 │       └── db/
 │           ├── pool.js         one shared pg connection pool
 │           ├── migrate.js      runs migrations/*.sql in order
-│           ├── migrations/     001_photos, 002_auth, 003_shortlists, 004_bookings
+│           ├── migrations/     001_photos, 002_auth, 003_shortlists, 004_bookings, 005_blocked_dates
 │           ├── seed.js         loads seed-data.js into an empty photos table
 │           └── seed-data.js    the Week 2 photo data
 └── client/                     React site
@@ -177,6 +189,8 @@ Practicum-2026/
         ├── lib/api.js          fetch helper for /api calls
         ├── lib/auth.js         sign up / in / out, get-session and getMe (isAdmin)
         ├── lib/unsplash.js     builds src / srcSet / sizes for each photo
+        ├── lib/shareLink.js    reads and builds ?shortlist=1,5,8 links
+        ├── lib/dates.js        today in Nairobi; formats YYYY-MM-DD dates
         └── components/
             ├── Container.jsx        shared centred max-width wrapper
             ├── Header.jsx           brand, nav, shortlist count, Sign in
@@ -193,10 +207,11 @@ Practicum-2026/
             ├── Eyebrow.jsx          small section label
             ├── Footer.jsx
             └── admin/
-                ├── AdminPage.jsx       /admin: sign-in or not-an-admin messages, Bookings and Photos tabs
+                ├── AdminPage.jsx       /admin: sign-in or not-an-admin messages; Bookings, Availability and Photos tabs
                 ├── AdminBookings.jsx   status filter + list of bookings
-                ├── BookingCard.jsx     one booking: details, status, private notes, delete
-                ├── AdminPhotos.jsx     ordered photo list: move, edit, delete, add
+                ├── AdminAvailability.jsx   block / unblock days
+                ├── BookingCard.jsx     one booking: details, status, private notes, Block this date, delete
+                ├── AdminPhotos.jsx     most shortlisted + ordered photo list: move, edit, delete, add
                 ├── PhotoEditor.jsx     add / edit form with a live preview
                 └── ConfirmButton.jsx   Delete → "Yes, delete / Cancel"
 ```
@@ -206,7 +221,7 @@ Practicum-2026/
 
 ## State: the category filter and the shortlist
 
-**Category filter (`useState` in `Gallery.jsx`).** The only thing stored is the chosen category: `const [activeCategory, setActiveCategory] = useState("all")`. The list of visible photos is not stored; it is worked out from `photos` and `activeCategory` on every render, so it can never get out of step with the buttons. `FilterBar` draws one button per category with `aria-pressed` on the active one and reports clicks through an `onChange` prop. Above the grid, "Showing n of 8" counts the visible photos.
+**Category filter (`useState` in `Gallery.jsx`).** The only thing stored is the chosen category: `const [activeCategory, setActiveCategory] = useState("all")`. The list of visible photos is not stored; it is worked out from `photos` and `activeCategory` on every render, so it can never get out of step with the buttons. `FilterBar` draws one button per category with `aria-pressed` on the active one and reports clicks through an `onChange` prop. Above the grid, "Showing n of total" counts the visible photos.
 
 The photos themselves come from the API: `App.jsx` fetches `/api/photos` once in a `useEffect` when the page loads and passes the array to `Gallery`, which shows "Loading photos…" until it arrives and an error message if the API can't be reached.
 
@@ -219,6 +234,14 @@ The shortlist itself, an array of photo ids, lives in `App.jsx`, not in `Gallery
 - reaches `BookingForm`, which lists the shortlisted titles, sends their ids with the request and has a Clear shortlist button.
 
 When you're signed in, every star and unstar is also sent to `/api/shortlist`, so the shortlist is saved in the `shortlists` table and comes back after a refresh or on another device. Anything you starred before signing in is saved when you sign in. Signed out, it works as before but only for that visit.
+
+### Sharing a shortlist
+
+In the booking form, **Copy share link** copies an address like `https://practicum-2026.vercel.app/?shortlist=1,5,8#work`. Whoever opens it sees those photos starred, the gallery opens on a **★ Shortlisted** filter, and a note explains that the shortlist was shared with them. They can add their own picks and send it with a booking. If they're signed in, the shared photos are added to their saved shortlist.
+
+`client/src/lib/shareLink.js` reads the ids from the address once when the page loads, then removes `?shortlist=` from the address bar, so a refresh doesn't re-add them. Ids that don't match a photo are ignored. If the browser won't allow copying, the link is shown in a box to copy by hand.
+
+The **★ Shortlisted** filter also appears whenever you've starred something yourself.
 
 ## Responsive layout (mobile-first)
 
@@ -246,3 +269,5 @@ To use your own photos instead, put the files in `client/public/images/`. Anythi
 ## Booking form
 
 The form sends requests to `POST /api/bookings`, which saves them in the `bookings` table; you read and manage them in the admin panel's Bookings tab. If you're signed in, your name and email are filled in for you and the booking is linked to your account. The ids of your shortlisted photos go with the request, and the server looks up their titles itself rather than trusting the browser. On success the form clears and says the request is in. If something is wrong, each problem is shown under its field.
+
+The date picker starts at today (Nairobi time), lists the next few unavailable days under it, and warns straight away if you pick a blocked day. The server checks again, so a blocked or past date is refused even if the browser check is skipped.

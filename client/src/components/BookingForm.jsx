@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { sessions } from "../data/bookingOptions.js";
 import { api } from "../lib/api.js";
+import { formatDay, todayInNairobi } from "../lib/dates.js";
+import { shareLinkFor } from "../lib/shareLink.js";
 import Container from "./Container.jsx";
 import Eyebrow from "./Eyebrow.jsx";
 import FormField, { inputClass } from "./FormField.jsx";
@@ -13,16 +15,46 @@ import FormField, { inputClass } from "./FormField.jsx";
 //   shortlist          shortlisted photo ids, sent with the request
 //   shortlistedTitles  their titles, shown above the submit button
 //   onClearShortlist() empties the shortlist
-function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShortlist }) {
+//   blockedDates       upcoming days that can't be booked, e.g. ["2026-12-12"]
+function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShortlist, blockedDates = [] }) {
   // idle | sending | sent | error. status says what to show under the button.
   const [state, setState] = useState("idle");
   const [status, setStatus] = useState("");
   const [errors, setErrors] = useState({});
+  // After "Copy share link": "copied", or the link itself if copying wasn't allowed.
+  const [shared, setShared] = useState("");
+
+  const blockedMessage = (day) => `I'm not available on ${formatDay(day)}. Please choose another date.`;
+
+  // Warn as soon as a blocked day is picked, rather than after sending.
+  function handleDateChange(event) {
+    const day = event.target.value;
+    setErrors((prev) => ({ ...prev, preferredDate: blockedDates.includes(day) ? blockedMessage(day) : undefined }));
+  }
+
+  async function copyShareLink() {
+    const link = shareLinkFor(shortlist);
+    try {
+      await navigator.clipboard.writeText(link);
+      setShared("copied");
+    } catch {
+      setShared(link); // show it so it can be copied by hand
+    }
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+
+    const day = form.get("date");
+    if (blockedDates.includes(day)) {
+      setErrors({ preferredDate: blockedMessage(day) });
+      setState("error");
+      setStatus("Please check the highlighted fields.");
+      return;
+    }
+
     setState("sending");
     setStatus("");
     setErrors({});
@@ -124,8 +156,22 @@ function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShor
               {fieldError("shootType")}
             </FormField>
             <FormField id="date" label="Preferred date">
-              <input id="date" name="date" type="date" className={inputClass} />
+              <input
+                id="date"
+                name="date"
+                type="date"
+                min={todayInNairobi()}
+                onChange={handleDateChange}
+                aria-describedby={blockedDates.length > 0 ? "date-unavailable" : undefined}
+                className={inputClass}
+              />
               {fieldError("preferredDate")}
+              {blockedDates.length > 0 && (
+                <p id="date-unavailable" className="text-xs text-ink-soft">
+                  Unavailable: {blockedDates.slice(0, 6).map((d) => formatDay(d, "short")).join(", ")}
+                  {blockedDates.length > 6 && ` and ${blockedDates.length - 6} more`}
+                </p>
+              )}
             </FormField>
           </div>
 
@@ -145,13 +191,36 @@ function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShor
               <p className="min-w-0">
                 <span className="font-bold">Shortlisted:</span> {shortlistedTitles.join(", ")}
               </p>
-              <button
-                type="button"
-                onClick={onClearShortlist}
-                className="font-semibold text-accent underline underline-offset-2 hover:text-ink"
-              >
-                Clear shortlist
-              </button>
+              <span className="flex flex-wrap gap-x-4 gap-y-1">
+                <button
+                  type="button"
+                  onClick={copyShareLink}
+                  className="font-semibold text-accent underline underline-offset-2 hover:text-ink"
+                >
+                  {shared === "copied" ? "Link copied" : "Copy share link"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShared("");
+                    onClearShortlist();
+                  }}
+                  className="font-semibold text-accent underline underline-offset-2 hover:text-ink"
+                >
+                  Clear shortlist
+                </button>
+              </span>
+              {shared && shared !== "copied" && (
+                <label className="flex w-full flex-col gap-1 text-xs text-ink-soft">
+                  Copy this link to share your shortlist:
+                  <input
+                    readOnly
+                    value={shared}
+                    onFocus={(event) => event.target.select()}
+                    className={`${inputClass} font-mono text-xs`}
+                  />
+                </label>
+              )}
             </div>
           )}
 

@@ -1,25 +1,53 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { api } from "../../lib/api.js";
 import Container from "../Container.jsx";
 import ProfileMenu from "../ProfileMenu.jsx";
+import AdminAvailability from "./AdminAvailability.jsx";
 import AdminBookings from "./AdminBookings.jsx";
 import AdminPhotos from "./AdminPhotos.jsx";
 
 const tabs = [
   { id: "bookings", label: "Bookings" },
+  { id: "availability", label: "Availability" },
   { id: "photos", label: "Photos" },
 ];
 
 // The admin panel at /admin. App renders this instead of the public page.
-// Only admins see the tabs; everyone else gets a short explanation.
+// Only admins see the tabs (Bookings, Availability, Photos); everyone else
+// gets a short explanation.
 // The server checks again on every /api/admin request, so this is about
 // showing the right screen, not about security.
 //
 // Props: me = { user, isAdmin } or null while it's still loading.
 function AdminPage({ me, onSignInClick, onSignOut }) {
   // Remember the open tab in the address (#photos), so a refresh keeps it.
-  const [tab, setTab] = useState(() => (window.location.hash === "#photos" ? "photos" : "bookings"));
+  const [tab, setTab] = useState(() => tabs.find((t) => `#${t.id}` === window.location.hash)?.id ?? "bookings");
   const [newCount, setNewCount] = useState(null);
   const handleCounts = useCallback((count) => setNewCount(count), []);
+
+  // Blocked dates are shared by two tabs: Availability lists and edits them,
+  // and each booking card offers "Block this date". So they live here.
+  const [blockedDates, setBlockedDates] = useState([]);
+  const [blockedStatus, setBlockedStatus] = useState("loading");
+  const isAdmin = Boolean(me?.isAdmin);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    api("/api/admin/blocked-dates")
+      .then((rows) => {
+        setBlockedDates(rows);
+        setBlockedStatus("ready");
+      })
+      .catch(() => setBlockedStatus("error"));
+  }, [isAdmin]);
+
+  // Both reply with the full upcoming list, so state is simply replaced.
+  async function blockDates({ from, to = from, note = "" }) {
+    setBlockedDates(await api("/api/admin/blocked-dates", { method: "POST", body: { from, to, note } }));
+  }
+  async function unblockDate(day) {
+    setBlockedDates(await api(`/api/admin/blocked-dates/${day}`, { method: "DELETE" }));
+  }
 
   function openTab(id) {
     setTab(id);
@@ -108,7 +136,15 @@ function AdminPage({ me, onSignInClick, onSignOut }) {
 
               {/* Both panels stay mounted so switching tabs doesn't reload them. */}
               <section id="panel-bookings" role="tabpanel" aria-labelledby="tab-bookings" hidden={tab !== "bookings"}>
-                <AdminBookings onCountsChange={handleCounts} />
+                <AdminBookings onCountsChange={handleCounts} blockedDates={blockedDates} onBlockDate={blockDates} />
+              </section>
+              <section id="panel-availability" role="tabpanel" aria-labelledby="tab-availability" hidden={tab !== "availability"}>
+                <AdminAvailability
+                  blockedDates={blockedDates}
+                  status={blockedStatus}
+                  onBlock={blockDates}
+                  onUnblock={unblockDate}
+                />
               </section>
               <section id="panel-photos" role="tabpanel" aria-labelledby="tab-photos" hidden={tab !== "photos"}>
                 <AdminPhotos />

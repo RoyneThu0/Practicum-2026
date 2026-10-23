@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { bookingStatuses } from "../../data/bookingOptions.js";
+import { formatDay, todayInNairobi } from "../../lib/dates.js";
 import FormField, { inputClass } from "../FormField.jsx";
 import ConfirmButton from "./ConfirmButton.jsx";
 
@@ -12,12 +13,12 @@ const statusClasses = {
 };
 
 const received = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
-const shootDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" });
 
 // One booking request. The status dropdown saves as soon as it changes;
 // private notes save with their own button.
 // onChange(id, changes) and onDelete(id) come from AdminBookings and return promises.
-function BookingCard({ booking, onChange, onDelete }) {
+// isDateBlocked / onBlockDate let you block the requested day once it's booked.
+function BookingCard({ booking, onChange, onDelete, isDateBlocked, onBlockDate }) {
   const [notes, setNotes] = useState(booking.adminNotes);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -59,7 +60,25 @@ function BookingCard({ booking, onChange, onDelete }) {
           <dt className="text-ink-soft">Shoot</dt>
           <dd>{booking.shootType}</dd>
           <dt className="text-ink-soft">Preferred date</dt>
-          <dd>{booking.preferredDate ? shootDate.format(new Date(booking.preferredDate)) : "Not given"}</dd>
+          <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {booking.preferredDate ? formatDay(booking.preferredDate) : "Not given"}
+            {booking.preferredDate && booking.preferredDate >= todayInNairobi() &&
+              (isDateBlocked ? (
+                <span className="font-mono text-xs text-ink-soft">blocked</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onBlockDate({ from: booking.preferredDate, note: `Booking: ${booking.name}` }).catch((err) =>
+                      setError(err.message)
+                    )
+                  }
+                  className="rounded-full border border-line px-2.5 py-0.5 text-xs font-semibold transition-colors hover:border-ink"
+                >
+                  Block this date
+                </button>
+              ))}
+          </dd>
           <dt className="text-ink-soft">Received</dt>
           <dd>{received.format(new Date(booking.createdAt))}</dd>
           {booking.shortlistTitles.length > 0 && (

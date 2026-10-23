@@ -9,17 +9,30 @@ import Hero from "./components/Hero.jsx";
 import AdminPage from "./components/admin/AdminPage.jsx";
 import { api } from "./lib/api.js";
 import { getMe, signOut } from "./lib/auth.js";
+import { clearSharedShortlistFromUrl, readSharedShortlist } from "./lib/shareLink.js";
 
 // The site has two pages: the portfolio at / and the admin panel at /admin.
 // A plain path check is enough for two pages, so there's no router library.
 // (Vercel serves index.html for /admin too; see client/vercel.json.)
 const isAdminPage = window.location.pathname.replace(/\/+$/, "") === "/admin";
 
+// A shared shortlist link (?shortlist=1,5,8) is read once, when the page loads.
+const sharedIds = isAdminPage ? [] : readSharedShortlist();
+clearSharedShortlistFromUrl();
+
 function App() {
   // The photos now come from the API (Postgres), not a hardcoded file.
   // status is "loading" until the request finishes, then "ready" or "error".
   const [photos, setPhotos] = useState([]);
   const [photosStatus, setPhotosStatus] = useState("loading");
+
+  // The shortlist lives here (not in Gallery) so it survives filter changes
+  // and can be shared with the header and booking form. It holds photo ids.
+  // A shared link starts it off with the shared photos.
+  const [shortlist, setShortlist] = useState(sharedIds);
+
+  // Upcoming days the studio isn't available, for the booking form's date check.
+  const [blockedDates, setBlockedDates] = useState([]);
 
   // Runs once when the page loads ([] = no dependencies, so never again).
   // The admin panel loads its own copy of the photos, so it skips this.
@@ -29,13 +42,17 @@ function App() {
       .then((rows) => {
         setPhotos(rows);
         setPhotosStatus("ready");
+        // Drop shared ids that don't match a photo (deleted, or a mistyped link).
+        const realIds = new Set(rows.map((photo) => photo.id));
+        setShortlist((prev) => prev.filter((id) => realIds.has(id)));
       })
       .catch(() => setPhotosStatus("error"));
-  }, []);
 
-  // The shortlist lives here (not in Gallery) so it survives filter changes
-  // and can be shared with the header and booking form. It holds photo ids.
-  const [shortlist, setShortlist] = useState([]);
+    // Upcoming unavailable days, so the booking form can warn before sending.
+    api("/api/availability")
+      .then((data) => setBlockedDates(data.blockedDates))
+      .catch(() => {}); // not fatal: the server still refuses blocked dates
+  }, []);
 
   // Who is signed in (null = nobody). On page load we ask the server; the
   // session cookie is sent along, so a refresh keeps you signed in.
@@ -51,7 +68,9 @@ function App() {
   // full saved list is loaded back from the server.
   async function loadSavedShortlist(localIds) {
     try {
-      await Promise.all(localIds.map((id) => api(`/api/shortlist/${id}`, { method: "PUT" })));
+      // allSettled: one bad id (say, a deleted photo from an old shared link)
+      // shouldn't stop the rest being saved.
+      await Promise.allSettled(localIds.map((id) => api(`/api/shortlist/${id}`, { method: "PUT" })));
       setShortlist(await api("/api/shortlist"));
     } catch {
       // Not fatal: the shortlist still works for this visit, it just isn't saved.
@@ -63,7 +82,8 @@ function App() {
       .then((me) => {
         setUser(me.user);
         setIsAdmin(me.isAdmin);
-        if (me.user && !isAdminPage) loadSavedShortlist([]);
+        // Signed in: merge any shared photos into the saved shortlist.
+        if (me.user && !isAdminPage) loadSavedShortlist(sharedIds);
       })
       .catch(() => setUser(null))
       .finally(() => setMeLoaded(true));
@@ -141,12 +161,15 @@ function App() {
         <Gallery
           photos={photos}
           status={photosStatus}
+          startOnShortlist={sharedIds.length > 0}
+          sharedCount={photosStatus === "ready" ? sharedIds.filter((id) => photos.some((p) => p.id === id)).length : 0}
           shortlist={shortlist}
           onShortlistChange={setShortlisted}
         />
         <About />
         <BookingForm
           user={user}
+          blockedDates={blockedDates}
           shortlist={shortlist}
           shortlistedTitles={shortlistedTitles}
           onClearShortlist={clearShortlist}

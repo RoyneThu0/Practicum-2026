@@ -31,11 +31,12 @@ function AdminPhotos() {
   async function savePhoto(values) {
     if (editing === "new") {
       const created = await api("/api/admin/photos", { method: "POST", body: values });
-      setPhotos((prev) => [...prev, created]);
+      setPhotos((prev) => [...prev, { ...created, shortlistCount: 0, bookingCount: 0 }]);
       setNotice(`Added “${created.title}” to the end of the gallery.`);
     } else {
       const updated = await api(`/api/admin/photos/${editing.id}`, { method: "PATCH", body: values });
-      setPhotos((prev) => prev.map((photo) => (photo.id === updated.id ? updated : photo)));
+      // Keep the counts: the PATCH reply only has the photo's own fields.
+      setPhotos((prev) => prev.map((photo) => (photo.id === updated.id ? { ...photo, ...updated } : photo)));
       setNotice(`Saved “${updated.title}”.`);
     }
     setEditing(null);
@@ -65,8 +66,47 @@ function AdminPhotos() {
     return <p role="alert" className="py-12">The photos couldn't be loaded. Refresh to try again.</p>;
   }
 
+  // The five photos people like most: saved shortlists plus bookings that include them.
+  const popularity = (photo) => photo.shortlistCount + photo.bookingCount;
+  const mostLiked = [...photos]
+    .filter((photo) => popularity(photo) > 0)
+    .sort((a, b) => popularity(b) - popularity(a) || b.bookingCount - a.bookingCount)
+    .slice(0, 5);
+
   return (
     <div className="flex flex-col gap-5">
+      <section aria-labelledby="most-liked-title" className="rounded border border-line bg-paper-raised p-4 sm:p-5">
+        <h3 id="most-liked-title" className="font-display text-2xl leading-none">Most shortlisted</h3>
+        {mostLiked.length === 0 ? (
+          <p className="mt-2 text-sm text-ink-soft">
+            Nothing yet. Counts come from signed-in visitors' saved shortlists and from booking requests.
+          </p>
+        ) : (
+          <ol className="mt-3 flex flex-col gap-2">
+            {mostLiked.map((photo, index) => (
+              <li key={photo.id} className="flex items-center gap-3">
+                <span className="w-4 font-mono text-sm text-ink-soft tabular-nums">{index + 1}</span>
+                <img
+                  src={thumbnailFor(photo.unsplashId, 96)}
+                  alt=""
+                  width="40"
+                  height="40"
+                  loading="lazy"
+                  className="size-10 shrink-0 rounded bg-paper object-cover"
+                />
+                <span className="min-w-0 flex-1 truncate font-semibold">{photo.title}</span>
+                <span className="shrink-0 font-mono text-xs text-ink-soft tabular-nums">
+                  ★ {photo.shortlistCount} · {photo.bookingCount} {photo.bookingCount === 1 ? "booking" : "bookings"}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+        <p className="mt-3 text-xs text-ink-soft">
+          ★ = saved in a signed-in visitor's shortlist. Guests' stars stay in their browser until they sign in or book.
+        </p>
+      </section>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-ink-soft">
           {photos.length} {photos.length === 1 ? "photo" : "photos"}, in gallery order. The top one is the first tile.
@@ -115,6 +155,9 @@ function AdminPhotos() {
                 <p className="truncate font-semibold">{photo.title}</p>
                 <p className="font-mono text-xs text-ink-soft">
                   {labelFor(photoCategories, photo.category)} · {labelFor(photoShapes, photo.shape)} · {photo.credit}
+                </p>
+                <p className="font-mono text-xs text-ink-soft tabular-nums">
+                  ★ {photo.shortlistCount} saved · in {photo.bookingCount} {photo.bookingCount === 1 ? "booking" : "bookings"}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">

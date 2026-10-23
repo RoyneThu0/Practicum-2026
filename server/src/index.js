@@ -9,6 +9,8 @@ import meRouter from "./routes/me.js";
 import bookingsRouter from "./routes/bookings.js";
 import adminPhotosRouter from "./routes/admin/photos.js";
 import adminBookingsRouter from "./routes/admin/bookings.js";
+import adminBlockedDatesRouter from "./routes/admin/blockedDates.js";
+import availabilityRouter from "./routes/availability.js";
 import requireAdmin from "./middleware/requireAdmin.js";
 
 const app = express();
@@ -39,11 +41,13 @@ app.use("/api/photos", photosRouter);
 app.use("/api/shortlist", shortlistRouter); // signed-in users only
 app.use("/api/me", meRouter);
 app.use("/api/bookings", bookingsRouter); // anyone can send a booking request
+app.use("/api/availability", availabilityRouter); // which upcoming dates are blocked
 
 // Admin panel routes. requireAdmin answers 401 (not signed in) or 403 (not on
 // the ADMIN_EMAILS list) before any of these run.
 app.use("/api/admin/photos", requireAdmin, adminPhotosRouter);
 app.use("/api/admin/bookings", requireAdmin, adminBookingsRouter);
+app.use("/api/admin/blocked-dates", requireAdmin, adminBlockedDatesRouter);
 
 // Anything that throws ends up here: log it, send a plain JSON error.
 app.use((error, req, res, next) => {
