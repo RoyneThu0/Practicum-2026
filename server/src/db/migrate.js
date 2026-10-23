@@ -5,6 +5,9 @@ import "dotenv/config";
 import { readdir, readFile } from "node:fs/promises";
 import pool from "./pool.js";
 
+// Print only the host (never the password) so deploy logs show which database we hit.
+console.log(`migrating database on ${new URL(process.env.DATABASE_URL).hostname}`);
+
 const dir = new URL("./migrations/", import.meta.url);
 const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
 
