@@ -1,0 +1,27 @@
+# Render Blueprint for the Express API (server/).
+# Render reads this file when you create the service from the repo.
+# The React client is deployed separately on Vercel (see client/vercel.json).
+services:
+  - type: web
+    name: practicum-photography-api
+    runtime: node
+    plan: free
+    region: ohio            # same region as the Neon database (AWS us-east-2)
+    rootDir: server
+    # Install, then create/update the tables and seed the photos.
+    # Both scripts are safe to run on every deploy.
+    buildCommand: npm ci && npm run db:setup
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Pasted in by hand in the Render dashboard; never committed.
+      - key: DATABASE_URL
+        sync: false
+      # Render generates a long random value once and keeps it.
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      # The public Vercel URL, e.g. https://practicum-2026.vercel.app
+      - key: BETTER_AUTH_URL
+        sync: false

@@ -18,7 +18,7 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
 
   // The public address of the site. In production that's the Vercel URL:
-  // Vercel forwards /api/* to Railway, so the browser only ever talks to one
+  // Vercel forwards /api/* to Render, so the browser only ever talks to one
   // origin and the session cookie is a normal first-party cookie.
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [process.env.BETTER_AUTH_URL],

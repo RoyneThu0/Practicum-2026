@@ -1,7 +1,7 @@
 // Every call to our own backend goes through this one helper.
 // Paths start with /api, which is the same site the page came from:
 //   - in development, Vite forwards /api to the Express server (vite.config.js)
-//   - on Vercel, vercel.json forwards /api to the Railway server
+//   - on Vercel, vercel.json forwards /api to the Render server
 // Because it's the same site, the browser sends the session cookie automatically.
 
 export async function api(path, { method = "GET", body } = {}) {

@@ -1,4 +1,4 @@
-// Load variables from server/.env into process.env (on Railway they come from the dashboard instead).
+// Load variables from server/.env into process.env (on Render they come from the dashboard instead).
 import "dotenv/config";
 import express from "express";
 import { toNodeHandler } from "better-auth/node";
@@ -9,7 +9,7 @@ import shortlistRouter from "./routes/shortlist.js";
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Railway (and Vercel in front of it) sit between the browser and us.
+// Render (and Vercel in front of it) sit between the browser and us.
 // Trusting the proxy lets Express see the real protocol (https) and client IP.
 app.set("trust proxy", true);
 
@@ -24,7 +24,7 @@ app.all("/api/auth/*splat", toNodeHandler(auth));
 // Parse JSON request bodies for our own routes (e.g. shortlist updates).
 app.use(express.json());
 
-// A tiny route to check the server is up. Railway also uses it as a health check.
+// A tiny route to check the server is up. Render also uses it as a health check.
 app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
