@@ -8,8 +8,8 @@ services:
     plan: free
     region: ohio            # same region as the Neon database (AWS us-east-2)
     rootDir: server
-    # Install, then create/update the tables and seed the photos.
-    # Both scripts are safe to run on every deploy.
+    # Install, then create/update the tables, and seed the photos if the table
+    # is empty. Both scripts are safe to run on every deploy.
     buildCommand: npm ci && npm run db:setup
     startCommand: npm start
     healthCheckPath: /api/health
@@ -24,4 +24,7 @@ services:
         generateValue: true
       # The public Vercel URL, e.g. https://practicum-2026.vercel.app
       - key: BETTER_AUTH_URL
+        sync: false
+      # Comma-separated emails allowed into the admin panel, e.g. you@example.com
+      - key: ADMIN_EMAILS
         sync: false

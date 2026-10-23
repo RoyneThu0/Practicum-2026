@@ -1,29 +1,61 @@
 import { useState } from "react";
+import { sessions } from "../data/bookingOptions.js";
+import { api } from "../lib/api.js";
 import Container from "./Container.jsx";
 import Eyebrow from "./Eyebrow.jsx";
 import FormField, { inputClass } from "./FormField.jsx";
 
-// Replace YOUR_FORM_ID with a real Formspree form id to start receiving bookings.
-const FORM_ACTION = "https://formspree.io/f/YOUR_FORM_ID";
-
-const sessions = [
-  { name: "Lodge & property", length: "1–3 days" },
-  { name: "Editorial assignment", length: "by brief" },
-  { name: "Print commission", length: "2–6 weeks" },
-];
-
-function BookingForm({ shortlistedTitles = [], onClearShortlist }) {
+// Booking requests are saved in the bookings table (POST /api/bookings) and
+// show up in the admin panel's Bookings tab.
+//
+// Props:
+//   user               the signed-in user or null; prefills name and email
+//   shortlist          shortlisted photo ids, sent with the request
+//   shortlistedTitles  their titles, shown above the submit button
+//   onClearShortlist() empties the shortlist
+function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShortlist }) {
+  // idle | sending | sent | error. status says what to show under the button.
+  const [state, setState] = useState("idle");
   const [status, setStatus] = useState("");
+  const [errors, setErrors] = useState({});
 
-  function handleSubmit(event) {
-    // Until a real endpoint is set, stop the submit and say so rather than pretending it was sent.
-    if (FORM_ACTION.includes("YOUR_FORM_ID")) {
-      event.preventDefault();
+  async function handleSubmit(event) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setState("sending");
+    setStatus("");
+    setErrors({});
+
+    try {
+      await api("/api/bookings", {
+        method: "POST",
+        body: {
+          name: form.get("name"),
+          email: form.get("email"),
+          shootType: form.get("shoot_type"),
+          preferredDate: form.get("date"),
+          message: form.get("message"),
+          photoIds: shortlist,
+          website: form.get("website"), // the hidden honeypot field; people leave it empty
+        },
+      });
+      formElement.reset();
+      setState("sent");
+      setStatus("Thanks, your request is in. I'll reply within two working days.");
+    } catch (err) {
+      setState("error");
+      setErrors(err.fields ?? {});
       setStatus(
-        "This form isn't connected yet, so nothing was sent. Please email hello@example.com instead."
+        err.fields
+          ? "Please check the highlighted fields."
+          : "Your request couldn't be sent just now. Please try again, or email hello@example.com."
       );
     }
   }
+
+  const fieldError = (name) =>
+    errors[name] && <p className="text-sm font-semibold text-red-700 dark:text-red-300">{errors[name]}</p>;
 
   return (
     <section id="book" aria-labelledby="book-title" className="scroll-mt-16 py-12 sm:py-16 lg:py-24">
@@ -60,17 +92,23 @@ function BookingForm({ shortlistedTitles = [], onClearShortlist }) {
         </div>
 
         <form
-          action={FORM_ACTION}
-          method="POST"
           onSubmit={handleSubmit}
-          className="flex min-w-0 flex-col gap-4 rounded border border-line bg-paper-raised p-5 sm:p-8"
+          className="relative flex min-w-0 flex-col gap-4 rounded border border-line bg-paper-raised p-5 sm:p-8"
         >
+          {/* Honeypot: hidden from people and screen readers; bots tend to fill it in. */}
+          <div aria-hidden="true" className="absolute -left-[9999px] size-px overflow-hidden">
+            <label htmlFor="website">Leave this empty</label>
+            <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
+          </div>
+
           <div className="flex flex-col gap-4 sm:flex-row">
             <FormField id="name" label="Name">
-              <input id="name" name="name" type="text" autoComplete="name" required className={inputClass} />
+              <input id="name" name="name" type="text" autoComplete="name" required defaultValue={user?.name ?? ""} key={`name-${user?.id ?? "guest"}`} className={inputClass} />
+              {fieldError("name")}
             </FormField>
             <FormField id="email" label="Email">
-              <input id="email" name="email" type="email" autoComplete="email" required className={inputClass} />
+              <input id="email" name="email" type="email" autoComplete="email" required defaultValue={user?.email ?? ""} key={`email-${user?.id ?? "guest"}`} className={inputClass} />
+              {fieldError("email")}
             </FormField>
           </div>
 
@@ -83,9 +121,11 @@ function BookingForm({ shortlistedTitles = [], onClearShortlist }) {
                 ))}
                 <option>Something else</option>
               </select>
+              {fieldError("shootType")}
             </FormField>
             <FormField id="date" label="Preferred date">
               <input id="date" name="date" type="date" className={inputClass} />
+              {fieldError("preferredDate")}
             </FormField>
           </div>
 
@@ -97,6 +137,7 @@ function BookingForm({ shortlistedTitles = [], onClearShortlist }) {
               placeholder="Where is it, what do you need the photos for, and any dates that won't work?"
               className={`${inputClass} min-h-32 resize-y`}
             />
+            {fieldError("message")}
           </FormField>
 
           {shortlistedTitles.length > 0 && (
@@ -111,19 +152,22 @@ function BookingForm({ shortlistedTitles = [], onClearShortlist }) {
               >
                 Clear shortlist
               </button>
-              {/* Sent with the form so I know which photos you liked. */}
-              <input type="hidden" name="shortlist" value={shortlistedTitles.join(", ")} />
             </div>
           )}
 
           <button
             type="submit"
-            className="self-start rounded-full bg-accent px-6 py-3 font-bold text-accent-ink transition-colors hover:bg-ink hover:text-paper"
+            disabled={state === "sending"}
+            className="self-start rounded-full bg-accent px-6 py-3 font-bold text-accent-ink transition-colors hover:bg-ink hover:text-paper disabled:opacity-60"
           >
-            Request a date
+            {state === "sending" ? "Sending…" : "Request a date"}
           </button>
 
-          <p role="status" aria-live="polite" className="text-sm text-ink-soft empty:hidden">
+          <p
+            role="status"
+            aria-live="polite"
+            className={`text-sm empty:hidden ${state === "error" ? "font-semibold text-red-700 dark:text-red-300" : "text-ink-soft"}`}
+          >
             {status}
           </p>
         </form>

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
-// The signed-in user's profile button and its dropdown (name, email, Sign out).
+// The signed-in user's profile button and its dropdown (name, email, an
+// "Admin panel" link for admins, Sign out).
 // Only the open/closed state lives here; who the user is and what signing out
 // does both come from App through props.
-function ProfileMenu({ user, onSignOut }) {
+function ProfileMenu({ user, isAdmin = false, onSignOut }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -67,6 +68,15 @@ function ProfileMenu({ user, onSignOut }) {
             <p className="font-semibold">{user.name}</p>
             <p className="truncate font-mono text-xs text-ink-soft">{user.email}</p>
           </div>
+          {isAdmin && (
+            <a
+              href="/admin"
+              role="menuitem"
+              className="mt-1 block w-full rounded px-3 py-2 text-left text-sm font-semibold no-underline hover:bg-paper focus-visible:bg-paper"
+            >
+              Admin panel
+            </a>
+          )}
           <button
             type="button"
             role="menuitem"

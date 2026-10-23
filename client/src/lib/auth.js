@@ -11,6 +11,12 @@ export async function getCurrentUser() {
   return data?.user ?? null;
 }
 
+// Who is signed in, and are they an admin? Returns { user, isAdmin }.
+// The server decides isAdmin from its ADMIN_EMAILS list (server/src/lib/admins.js).
+export async function getMe() {
+  return api("/api/me");
+}
+
 export async function signUp({ name, email, password }) {
   const data = await api("/api/auth/sign-up/email", {
     method: "POST",

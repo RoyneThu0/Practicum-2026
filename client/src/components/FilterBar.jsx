@@ -9,9 +9,9 @@ const pillClass =
 const activePillClass = "border-ink bg-ink text-paper";
 const inactivePillClass = "border-line hover:border-ink";
 
-function FilterBar({ categories, active, onChange }) {
+function FilterBar({ categories, active, onChange, label = "Filter photos by landscape" }) {
   return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label="Filter photos by landscape">
+    <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
       {categories.map((category) => {
         const isActive = active === category.id;
         return (

@@ -4,6 +4,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://practicum-photography-api.onrender.com/api/:path*"
+    },
+    {
+      "source": "/admin",
+      "destination": "/index.html"
     }
   ]
 }

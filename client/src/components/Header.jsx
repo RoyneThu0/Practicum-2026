@@ -9,7 +9,7 @@ const navLinks = [
 // user: the signed-in user, or null. The header only shows it; App decides.
 // Layout: brand and nav links on the left; the far right holds ProfileMenu
 // (signed in, with Sign out inside) or a Sign in button (signed out).
-function Header({ shortlistCount = 0, user, onSignInClick, onSignOutClick }) {
+function Header({ shortlistCount = 0, user, isAdmin = false, onSignInClick, onSignOutClick }) {
   return (
     <>
       <a
@@ -60,7 +60,7 @@ function Header({ shortlistCount = 0, user, onSignInClick, onSignOutClick }) {
           {/* Far right: the profile menu when signed in, otherwise Sign in. */}
           <div className="ml-auto">
             {user ? (
-              <ProfileMenu user={user} onSignOut={onSignOutClick} />
+              <ProfileMenu user={user} isAdmin={isAdmin} onSignOut={onSignOutClick} />
             ) : (
               <button
                 type="button"

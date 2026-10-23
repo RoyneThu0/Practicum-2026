@@ -1,11 +1,12 @@
 # Practicum Photography
 
-A single-page landscape photography portfolio. Assignment 1 was plain HTML and CSS; Assignment 2 rebuilt it with Vite, React and Tailwind CSS v4. Assignment 3 adds a real backend: an Express API, a Neon Postgres database, signup and login with Better Auth, and deployment to Render (API) and Vercel (site). Plain JavaScript throughout, no TypeScript.
+A single-page landscape photography portfolio. Assignment 1 was plain HTML and CSS; Assignment 2 rebuilt it with Vite, React and Tailwind CSS v4. Assignment 3 adds a real backend: an Express API, a Neon Postgres database, signup and login with Better Auth, and deployment to Render (API) and Vercel (site). On top of that there's an admin panel at `/admin` for managing the gallery photos and the booking requests. Plain JavaScript throughout, no TypeScript.
 
 ## Live
 
 - Site: https://practicum-2026.vercel.app
 - API: https://practicum-photography-api.onrender.com/api/photos
+- Admin panel: https://practicum-2026.vercel.app/admin (admin accounts only)
 
 ## How it fits together
 
@@ -16,7 +17,7 @@ browser ──► Vercel (the React site, built by Vite)
             Render (Express API, server/)
               │  pg connection pool
               ▼
-            Neon (Postgres: photos, shortlists, and Better Auth's user/session tables)
+            Neon (Postgres: photos, bookings, shortlists, and Better Auth's user/session tables)
 ```
 
 The browser only ever talks to the Vercel address. Vercel passes any `/api/...` request on to the Express server on Render, so the API and the site share one origin. That keeps the login cookie a normal first-party cookie and means no CORS setup is needed. In development Vite does the same job with its `server.proxy` setting.
@@ -31,7 +32,7 @@ You need Node.js 22+ and a Postgres database (a free Neon project, or Postgres o
 cd server
 cp .env.example .env        # then fill in DATABASE_URL and BETTER_AUTH_SECRET
 npm install
-npm run db:setup            # creates the tables and seeds the 8 photos
+npm run db:setup            # creates the tables and seeds the 8 photos (only into an empty table)
 npm run dev                 # http://localhost:3000
 ```
 
@@ -56,6 +57,7 @@ Real secrets live only in `server/.env` on your machine and in the Render dashbo
 | `DATABASE_URL` | Neon connection string (ends in `?sslmode=require`) |
 | `BETTER_AUTH_SECRET` | long random string that signs the session cookie |
 | `BETTER_AUTH_URL` | the public address of the site: `http://localhost:5173` locally, the Vercel URL in production |
+| `ADMIN_EMAILS` | comma-separated emails that get the admin panel, e.g. `you@example.com` |
 | `PORT` | port for Express (Render sets this itself) |
 
 To check nothing secret is tracked: `git ls-files | grep .env` should print only `server/.env.example`.
@@ -64,11 +66,12 @@ To check nothing secret is tracked: `git ls-files | grep .env` should print only
 
 The tables are created by the SQL files in `server/src/db/migrations/`, run in order by `npm run db:migrate`.
 
-- **`photos`** — one row per photo in the gallery: title, alt text, category (plains, mountains or water), tile shape, the Unsplash image id, the photographer's name and link, and a `sort_order` for the gallery order. `server/src/db/seed.js` fills it from the Week 2 data in `seed-data.js`; it matches rows on `slug`, so seeding twice updates instead of duplicating.
+- **`photos`** — one row per photo in the gallery: title, alt text, category (plains, mountains or water), tile shape, the Unsplash image id, the photographer's name and link, and a `sort_order` for the gallery order. `server/src/db/seed.js` fills it from the Week 2 data in `seed-data.js`, but only when the table is empty. After that, photos are managed in the admin panel, and redeploying never overwrites those edits or brings back deleted photos.
 - **`user`** — one row per person who signed up: name and email (unique).
 - **`account`** — how each user logs in. For email and password there's one row per user holding the **hashed** password, never the real one.
 - **`session`** — one row per signed-in browser. The browser's cookie holds the session token; Better Auth looks it up here to know who is making a request, and checks it hasn't expired (sessions last 30 days).
 - **`verification`** — short-lived codes for things like password resets. Required by Better Auth, unused for now.
+- **`bookings`** — one row per request sent from the Book a shoot form: name, email, shoot type, preferred date, message, status (`new`, `contacted`, `booked` or `declined`) and private admin notes. The shortlist is stored twice: `photo_ids`, and `shortlist_titles` as a snapshot, so a booking still names the photos even if one is later renamed or deleted. `user_id` links it to the sender's account when they were signed in.
 - **`shortlists`** — which photos each user has starred. One row per (user, photo) pair, which is also the primary key, so a photo can't be starred twice. Deleting a user or photo deletes their rows (`ON DELETE CASCADE`).
 
 `user`, `account`, `session` and `verification` belong to Better Auth: it reads and writes them itself, and our code never queries them directly. Their exact columns are what Better Auth 1.7 expects (`002_auth.sql`).
@@ -87,8 +90,20 @@ The tables are created by the SQL files in `server/src/db/migrations/`, run in o
 | `PUT /api/shortlist/:photoId` | signed in | add a photo |
 | `DELETE /api/shortlist/:photoId` | signed in | remove a photo |
 | `DELETE /api/shortlist` | signed in | clear your shortlist |
+| `GET /api/me` | anyone | `{ user, isAdmin }`; `user` is `null` when signed out |
+| `POST /api/bookings` | anyone | send a booking request `{ name, email, shootType, preferredDate?, message, photoIds }` |
+| `GET /api/admin/photos` | admin | every photo with its `slug` and `sortOrder` |
+| `POST /api/admin/photos` | admin | add a photo at the end of the gallery |
+| `PATCH /api/admin/photos/:id` | admin | edit a photo |
+| `POST /api/admin/photos/:id/move` | admin | `{ direction: "up" \| "down" }` swaps it with its neighbour |
+| `DELETE /api/admin/photos/:id` | admin | delete a photo (its shortlist rows go too) |
+| `GET /api/admin/bookings?status=new` | admin | bookings, newest first; `status` is optional |
+| `PATCH /api/admin/bookings/:id` | admin | `{ status?, adminNotes? }` |
+| `DELETE /api/admin/bookings/:id` | admin | delete a booking |
 
-The `/api/auth/*` routes are handled by Better Auth (`server/src/auth.js`, mounted in `server/src/index.js`). The shortlist routes go through `server/src/middleware/requireAuth.js`, which asks Better Auth for the session behind the request's cookie and answers `401` if there isn't one.
+The `/api/auth/*` routes are handled by Better Auth (`server/src/auth.js`, mounted in `server/src/index.js`). The shortlist routes go through `server/src/middleware/requireAuth.js`, which asks Better Auth for the session behind the request's cookie and answers `401` if there isn't one. The `/api/admin/*` routes go through `requireAdmin.js`, which does the same and then answers `403` unless the user's email is in `ADMIN_EMAILS`.
+
+Form routes validate their input on the server (`server/src/lib/validatePhoto.js` and `validateBooking.js`). A bad request gets `400` with `{ error, errors: { field: message } }`, and the forms show each message under its field.
 
 ## Authentication
 
@@ -97,11 +112,23 @@ The `/api/auth/*` routes are handled by Better Auth (`server/src/auth.js`, mount
 3. **Surviving a refresh.** When the page loads, `App.jsx` calls `GET /api/auth/get-session`. The cookie comes with it, Better Auth finds the session in the database, and returns the user. `Header` then swaps the **Sign in** button at the far right for a profile menu ("Hi, name"), whose dropdown shows your name, email and **Sign out**. The brand and nav links stay on the left.
 4. **Sign out.** `POST /api/auth/sign-out` deletes the session row and clears the cookie.
 
+## Admin panel
+
+Go to `/admin`, or choose **Admin panel** in the profile menu, which only appears for admins.
+
+**Who is an admin.** Anyone who signs in with an email listed in the server's `ADMIN_EMAILS` setting. To make yourself one, sign up on the site with your email, then add that email to `ADMIN_EMAILS` (in `server/.env` locally, or in the Render dashboard) and restart. The list lives on the server, so nobody can make themselves an admin from the website. Hiding the link from other people is only for tidiness: every `/api/admin` request is checked on the server.
+
+**Bookings tab.** Every request from the Book a shoot form, newest first, filtered by status with a count on each filter. Each booking shows the sender's details, message and shortlisted photos. Changing the status dropdown saves straight away; private notes have their own Save button. The tab shows how many bookings are new.
+
+**Photos tab.** The gallery photos in order. Use ↑ and ↓ to reorder them, **Edit** to change one, **Delete** (with a Yes/Cancel check) to remove one, and **Add a photo** for a new one. In the Unsplash field you can paste either the `photo-…` id or the whole `images.unsplash.com` address, and the form shows a preview. Changes appear on the public site the next time it loads.
+
+**Spam.** The booking form has a hidden "website" field that people never see. Bots that fill in every field get a normal-looking reply, but nothing is saved.
+
 ## Deploying
 
-**API on Render.** `render.yaml` describes the service: root directory `server`, build `npm ci && npm run db:setup` (so every deploy creates any new tables and re-seeds the photos), start `npm start`, health check `/api/health`. In the Render dashboard, set `DATABASE_URL` to the Neon connection string and `BETTER_AUTH_URL` to the Vercel URL; Render generates `BETTER_AUTH_SECRET` itself. Every push to `main` redeploys.
+**API on Render.** `render.yaml` describes the service: root directory `server`, build `npm ci && npm run db:setup` (so every deploy creates any new tables; photos are only seeded into an empty table), start `npm start`, health check `/api/health`. In the Render dashboard, set `DATABASE_URL` to the Neon connection string, `BETTER_AUTH_URL` to the Vercel URL and `ADMIN_EMAILS` to your admin email(s); Render generates `BETTER_AUTH_SECRET` itself. Every push to `main` redeploys.
 
-**Site on Vercel.** Import the repo with root directory `client` (Vercel detects Vite). `client/vercel.json` rewrites `/api/*` to the Render URL. No environment variables are needed on Vercel. Every push to `main` redeploys.
+**Site on Vercel.** Import the repo with root directory `client` (Vercel detects Vite). `client/vercel.json` rewrites `/api/*` to the Render URL, and `/admin` to `index.html` so the admin panel loads when you open that address directly. No environment variables are needed on Vercel. Every push to `main` redeploys.
 
 The free Render plan sleeps after about 15 minutes without traffic, so the first request after a pause can take up to a minute. Open the site a minute or two before showing it.
 
@@ -114,36 +141,46 @@ Practicum-2026/
 ├── server/                     Express API
 │   ├── .env.example            which secrets the server needs (real .env is git-ignored)
 │   └── src/
-│       ├── index.js            Express app: auth routes, /api/photos, /api/shortlist
+│       ├── index.js            Express app: auth, photos, shortlist, bookings and admin routes
 │       ├── auth.js             Better Auth setup (email + password, 30-day sessions)
 │       ├── middleware/requireAuth.js   401 unless signed in; sets req.user
+│       ├── middleware/requireAdmin.js  403 unless the user is in ADMIN_EMAILS
+│       ├── lib/admins.js       reads ADMIN_EMAILS; isAdmin(user)
+│       ├── lib/options.js      allowed categories, shapes, shoot types, statuses
+│       ├── lib/validatePhoto.js / validateBooking.js   server-side form checks
 │       ├── routes/photos.js    GET /api/photos
 │       ├── routes/shortlist.js the signed-in user's shortlist
+│       ├── routes/me.js        GET /api/me (user + isAdmin)
+│       ├── routes/bookings.js  POST /api/bookings
+│       ├── routes/admin/photos.js    add, edit, reorder, delete photos
+│       ├── routes/admin/bookings.js  list, update, delete bookings
 │       └── db/
 │           ├── pool.js         one shared pg connection pool
 │           ├── migrate.js      runs migrations/*.sql in order
-│           ├── migrations/     001_photos, 002_auth, 003_shortlists
-│           ├── seed.js         loads seed-data.js into the photos table
+│           ├── migrations/     001_photos, 002_auth, 003_shortlists, 004_bookings
+│           ├── seed.js         loads seed-data.js into an empty photos table
 │           └── seed-data.js    the Week 2 photo data
 └── client/                     React site
     ├── index.html              page shell: fonts, favicon, the #root div
     ├── vite.config.js          React + Tailwind plugins, /api proxy for development
-    ├── vercel.json             forwards /api/* to the Render server
+    ├── vercel.json             forwards /api/* to the Render server; serves /admin
     ├── public/
     │   ├── favicon.svg
     │   └── images/             your own photos
     └── src/
         ├── main.jsx            mounts <App /> into #root
-        ├── App.jsx             loads photos and the session; holds shortlist and user state
+        ├── App.jsx             loads photos and the session; holds shortlist and user state; / or /admin
         ├── index.css           Tailwind import, @theme tokens, dark mode
         ├── data/categories.js  the filter buttons
+        ├── data/photoOptions.js     categories and tile shapes for the admin photo form
+        ├── data/bookingOptions.js   shoot types and booking statuses
         ├── lib/api.js          fetch helper for /api calls
-        ├── lib/auth.js         sign up / in / out and get-session
+        ├── lib/auth.js         sign up / in / out, get-session and getMe (isAdmin)
         ├── lib/unsplash.js     builds src / srcSet / sizes for each photo
         └── components/
             ├── Container.jsx        shared centred max-width wrapper
             ├── Header.jsx           brand, nav, shortlist count, Sign in
-            ├── ProfileMenu.jsx      signed-in user: avatar, "Hi, name", dropdown with Sign out
+            ├── ProfileMenu.jsx      signed-in user: avatar, "Hi, name", dropdown with Admin panel (admins) and Sign out
             ├── AuthDialog.jsx       sign-in / create-account popup
             ├── Hero.jsx             the h1 and intro
             ├── Gallery.jsx          filter state + the photo grid
@@ -154,7 +191,14 @@ Practicum-2026/
             ├── BookingForm.jsx
             ├── FormField.jsx        label + control pair used by the forms
             ├── Eyebrow.jsx          small section label
-            └── Footer.jsx
+            ├── Footer.jsx
+            └── admin/
+                ├── AdminPage.jsx       /admin: sign-in or not-an-admin messages, Bookings and Photos tabs
+                ├── AdminBookings.jsx   status filter + list of bookings
+                ├── BookingCard.jsx     one booking: details, status, private notes, delete
+                ├── AdminPhotos.jsx     ordered photo list: move, edit, delete, add
+                ├── PhotoEditor.jsx     add / edit form with a live preview
+                └── ConfirmButton.jsx   Delete → "Yes, delete / Cancel"
 ```
 
 - **`client/src/lib/unsplash.js`** turns a photo's `unsplashId` and `shape` into a `src`, a `srcSet` and a `sizes` attribute, so each tile downloads an image cropped to its own shape and phones get smaller files.
@@ -172,7 +216,7 @@ The shortlist itself, an array of photo ids, lives in `App.jsx`, not in `Gallery
 
 - survives filtering, because hiding a tile doesn't throw away its state;
 - reaches `Header`, which shows "Shortlist (n)";
-- reaches `BookingForm`, which lists the shortlisted titles, sends them with the request and has a Clear shortlist button.
+- reaches `BookingForm`, which lists the shortlisted titles, sends their ids with the request and has a Clear shortlist button.
 
 When you're signed in, every star and unstar is also sent to `/api/shortlist`, so the shortlist is saved in the `shortlists` table and comes back after a refresh or on another device. Anything you starred before signing in is saved when you sign in. Signed out, it works as before but only for that visit.
 
@@ -201,4 +245,4 @@ To use your own photos instead, put the files in `client/public/images/`. Anythi
 
 ## Booking form
 
-The form posts to [Formspree](https://formspree.io). Create a free form there and replace `YOUR_FORM_ID` in `FORM_ACTION` at the top of `src/components/BookingForm.jsx`. Until then, submitting shows a message that the form isn't connected yet and nothing is sent. Shortlisted photo titles are sent with the request in a hidden field.
+The form sends requests to `POST /api/bookings`, which saves them in the `bookings` table; you read and manage them in the admin panel's Bookings tab. If you're signed in, your name and email are filled in for you and the booking is linked to your account. The ids of your shortlisted photos go with the request, and the server looks up their titles itself rather than trusting the browser. On success the form clears and says the request is in. If something is wrong, each problem is shown under its field.

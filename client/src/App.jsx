@@ -6,8 +6,14 @@ import Footer from "./components/Footer.jsx";
 import Gallery from "./components/Gallery.jsx";
 import Header from "./components/Header.jsx";
 import Hero from "./components/Hero.jsx";
+import AdminPage from "./components/admin/AdminPage.jsx";
 import { api } from "./lib/api.js";
-import { getCurrentUser, signOut } from "./lib/auth.js";
+import { getMe, signOut } from "./lib/auth.js";
+
+// The site has two pages: the portfolio at / and the admin panel at /admin.
+// A plain path check is enough for two pages, so there's no router library.
+// (Vercel serves index.html for /admin too; see client/vercel.json.)
+const isAdminPage = window.location.pathname.replace(/\/+$/, "") === "/admin";
 
 function App() {
   // The photos now come from the API (Postgres), not a hardcoded file.
@@ -16,7 +22,9 @@ function App() {
   const [photosStatus, setPhotosStatus] = useState("loading");
 
   // Runs once when the page loads ([] = no dependencies, so never again).
+  // The admin panel loads its own copy of the photos, so it skips this.
   useEffect(() => {
+    if (isAdminPage) return;
     api("/api/photos")
       .then((rows) => {
         setPhotos(rows);
@@ -33,6 +41,10 @@ function App() {
   // session cookie is sent along, so a refresh keeps you signed in.
   const [user, setUser] = useState(null);
   const [authOpen, setAuthOpen] = useState(false);
+  // Whether the signed-in user is an admin (the server decides, from ADMIN_EMAILS),
+  // and whether we've heard back yet, so /admin doesn't flash "not an admin".
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [meLoaded, setMeLoaded] = useState(false);
 
   // Signed in, the shortlist is saved in the shortlists table. Anything starred
   // before signing in (localIds) is saved first, so it isn't lost, then the
@@ -47,23 +59,30 @@ function App() {
   }
 
   useEffect(() => {
-    getCurrentUser()
-      .then((currentUser) => {
-        setUser(currentUser);
-        if (currentUser) loadSavedShortlist([]);
+    getMe()
+      .then((me) => {
+        setUser(me.user);
+        setIsAdmin(me.isAdmin);
+        if (me.user && !isAdminPage) loadSavedShortlist([]);
       })
-      .catch(() => setUser(null));
+      .catch(() => setUser(null))
+      .finally(() => setMeLoaded(true));
   }, []);
 
   function handleSignedIn(signedInUser) {
     setUser(signedInUser);
     setAuthOpen(false);
-    loadSavedShortlist(shortlist);
+    if (!isAdminPage) loadSavedShortlist(shortlist);
+    // Ask again so the admin link and panel appear straight away for admins.
+    getMe()
+      .then((me) => setIsAdmin(me.isAdmin))
+      .catch(() => setIsAdmin(false));
   }
 
   async function handleSignOut() {
     await signOut();
     setUser(null);
+    setIsAdmin(false);
     setShortlist([]); // it belongs to the account that just signed out
   }
 
@@ -87,11 +106,33 @@ function App() {
     .filter((photo) => shortlist.includes(photo.id))
     .map((photo) => photo.title);
 
+  const authDialog = (
+    <AuthDialog
+      open={authOpen}
+      onClose={() => setAuthOpen(false)}
+      onSignedIn={handleSignedIn}
+    />
+  );
+
+  if (isAdminPage) {
+    return (
+      <>
+        <AdminPage
+          me={meLoaded ? { user, isAdmin } : null}
+          onSignInClick={() => setAuthOpen(true)}
+          onSignOut={handleSignOut}
+        />
+        {authDialog}
+      </>
+    );
+  }
+
   return (
     <>
       <Header
         shortlistCount={shortlist.length}
         user={user}
+        isAdmin={isAdmin}
         onSignInClick={() => setAuthOpen(true)}
         onSignOutClick={handleSignOut}
       />
@@ -105,16 +146,14 @@ function App() {
         />
         <About />
         <BookingForm
+          user={user}
+          shortlist={shortlist}
           shortlistedTitles={shortlistedTitles}
           onClearShortlist={clearShortlist}
         />
       </main>
       <Footer />
-      <AuthDialog
-        open={authOpen}
-        onClose={() => setAuthOpen(false)}
-        onSignedIn={handleSignedIn}
-      />
+      {authDialog}
     </>
   );
 }

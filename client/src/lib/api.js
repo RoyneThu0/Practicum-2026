@@ -20,7 +20,11 @@ export async function api(path, { method = "GET", body } = {}) {
   if (!response.ok) {
     // Better Auth sends { message }, our routes send { error }.
     const message = data?.message || data?.error || `Request failed (${response.status})`;
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    // Form routes also send { errors: { field: "message" } }; forms show them per field.
+    error.fields = data?.errors;
+    throw error;
   }
 
   return data;

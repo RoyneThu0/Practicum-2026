@@ -26,3 +26,8 @@ export function imageFor(photo) {
     height: height(shape.base),
   };
 }
+
+// A small square crop, for thumbnails in the admin panel.
+export function thumbnailFor(unsplashId, size = 160) {
+  return url(unsplashId, size, size);
+}

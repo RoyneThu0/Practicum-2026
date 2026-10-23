@@ -1,8 +1,17 @@
-// Loads the gallery photos into the photos table.
-// Upserts on slug, so running it twice updates rows instead of duplicating them.
+// Loads the starting gallery photos into the photos table, but only when the
+// table is empty (a brand-new database). Once photos exist they are managed
+// from the admin panel, and the deploy's db:setup must not overwrite those
+// edits or bring back photos that were deleted on purpose.
 import "dotenv/config";
 import pool from "./pool.js";
 import photos from "./seed-data.js";
+
+const { rows } = await pool.query("SELECT COUNT(*)::int AS count FROM photos");
+if (rows[0].count > 0) {
+  console.log(`photos table already has ${rows[0].count} rows; skipping the seed`);
+  await pool.end();
+  process.exit(0);
+}
 
 for (const [index, photo] of photos.entries()) {
   await pool.query(
