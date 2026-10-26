@@ -11,6 +11,11 @@ import adminPhotosRouter from "./routes/admin/photos.js";
 import adminBookingsRouter from "./routes/admin/bookings.js";
 import adminBlockedDatesRouter from "./routes/admin/blockedDates.js";
 import availabilityRouter from "./routes/availability.js";
+import checkoutRouter from "./routes/checkout.js";
+import ordersRouter from "./routes/orders.js";
+import slotsRouter from "./routes/slots.js";
+import stripeWebhook from "./routes/stripeWebhook.js";
+import adminPaymentsRouter from "./routes/admin/payments.js";
 import requireAdmin from "./middleware/requireAdmin.js";
 
 const app = express();
@@ -28,6 +33,10 @@ app.set("trust proxy", true);
 // It must come BEFORE express.json(), because it reads the request body itself.
 app.all("/api/auth/*splat", toNodeHandler(auth));
 
+// Stripe's webhook needs the raw request bytes to check the signature, so it
+// gets express.raw() and must come BEFORE express.json() below.
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhook);
+
 // Parse JSON request bodies for our own routes (e.g. shortlist updates).
 // 100kb is plenty for a booking or a photo's details.
 app.use(express.json({ limit: "100kb" }));
@@ -42,12 +51,16 @@ app.use("/api/shortlist", shortlistRouter); // signed-in users only
 app.use("/api/me", meRouter);
 app.use("/api/bookings", bookingsRouter); // anyone can send a booking request
 app.use("/api/availability", availabilityRouter); // which upcoming dates are blocked
+app.use("/api/slots", slotsRouter); // shoot time slots and their prices
+app.use("/api/checkout", checkoutRouter); // signed-in users: book and pay with Stripe
+app.use("/api/orders", ordersRouter); // signed-in users: their own orders
 
 // Admin panel routes. requireAdmin answers 401 (not signed in) or 403 (not on
 // the ADMIN_EMAILS list) before any of these run.
 app.use("/api/admin/photos", requireAdmin, adminPhotosRouter);
 app.use("/api/admin/bookings", requireAdmin, adminBookingsRouter);
 app.use("/api/admin/blocked-dates", requireAdmin, adminBlockedDatesRouter);
+app.use("/api/admin/payments", requireAdmin, adminPaymentsRouter);
 
 // Anything that throws ends up here: log it, send a plain JSON error.
 app.use((error, req, res, next) => {

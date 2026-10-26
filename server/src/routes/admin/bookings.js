@@ -9,6 +9,11 @@ const columns = `id, name, email, shoot_type AS "shootType",
                  message, shortlist_titles AS "shortlistTitles",
                  user_id IS NOT NULL AS "hasAccount",
                  status, admin_notes AS "adminNotes",
+                 (SELECT label FROM shoot_slots WHERE id = bookings.slot_id) AS "slotLabel",
+                 -- The latest order for this booking, if it was booked through checkout.
+                 (SELECT json_build_object('id', o.id, 'status', o.status, 'totalCents', o.total_cents, 'currency', o.currency)
+                    FROM orders o WHERE o.booking_id = bookings.id
+                   ORDER BY o.created_at DESC LIMIT 1) AS payment,
                  created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 function parseId(req, res) {

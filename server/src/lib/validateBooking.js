@@ -11,6 +11,9 @@ export default function validateBooking(input = {}) {
     email: text(input.email),
     shootType: text(input.shootType),
     preferredDate: text(input.preferredDate) || null,
+    // Which time slot (sunrise, morning…). Optional for an enquiry, required to pay.
+    // Whether it exists is checked against the shoot_slots table by the route.
+    slotId: text(input.slotId) || null,
     message: text(input.message),
     // Only whole numbers survive; anything else is dropped. Duplicates removed.
     photoIds: Array.isArray(input.photoIds)

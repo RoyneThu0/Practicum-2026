@@ -28,3 +28,10 @@ services:
       # Comma-separated emails allowed into the admin panel, e.g. you@example.com
       - key: ADMIN_EMAILS
         sync: false
+      # Stripe test-mode keys (Stripe dashboard). Never committed.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_CURRENCY
+        value: usd

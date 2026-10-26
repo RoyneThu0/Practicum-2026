@@ -8,3 +8,16 @@ export function isIsoDate(value) {
   const date = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
+
+// "2026-12-12" -> "Sat 12 Dec 2026", for order descriptions and Stripe's page.
+export function formatDay(day) {
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+    .format(new Date(`${day}T00:00:00Z`))
+    .replace(",", "");
+}
