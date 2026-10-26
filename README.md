@@ -1,6 +1,6 @@
 # Practicum Photography
 
-A single-page landscape photography portfolio. Assignment 1 was plain HTML and CSS; Assignment 2 rebuilt it with Vite, React and Tailwind CSS v4. Assignment 3 adds a real backend: an Express API, a Neon Postgres database, signup and login with Better Auth, and deployment to Render (API) and Vercel (site). On top of that there's an admin panel at `/admin` for managing the gallery photos and the booking requests. Plain JavaScript throughout, no TypeScript.
+A single-page landscape photography portfolio. Assignment 1 was plain HTML and CSS; Assignment 2 rebuilt it with Vite, React and Tailwind CSS v4. Assignment 3 adds a real backend: an Express API, a Neon Postgres database, signup and login with Better Auth, and deployment to Render (API) and Vercel (site). On top of that there's an admin panel at `/admin` for managing the gallery photos and the booking requests. Assignment 4 adds payments: book a shoot and pay with Stripe Checkout (test mode), confirmed by a webhook and saved as orders. Plain JavaScript throughout, no TypeScript.
 
 ## Live
 
@@ -17,7 +17,9 @@ browser ──► Vercel (the React site, built by Vite)
             Render (Express API, server/)
               │  pg connection pool
               ▼
-            Neon (Postgres: photos, bookings, blocked dates, shortlists, and Better Auth's user/session tables)
+            Neon (Postgres: photos, bookings, orders, blocked dates, shortlists, and Better Auth's user/session tables)
+
+            Stripe ── webhook (POST /api/stripe/webhook) ──► Render
 ```
 
 The browser only ever talks to the Vercel address. Vercel passes any `/api/...` request on to the Express server on Render, so the API and the site share one origin. That keeps the login cookie a normal first-party cookie and means no CORS setup is needed. In development Vite does the same job with its `server.proxy` setting.
@@ -58,6 +60,9 @@ Real secrets live only in `server/.env` on your machine and in the Render dashbo
 | `BETTER_AUTH_SECRET` | long random string that signs the session cookie |
 | `BETTER_AUTH_URL` | the public address of the site: `http://localhost:5173` locally, the Vercel URL in production |
 | `ADMIN_EMAILS` | comma-separated emails that get the admin panel, e.g. `you@example.com` |
+| `STRIPE_SECRET_KEY` | Stripe **test** secret key, `sk_test_…` (live keys are refused) |
+| `STRIPE_WEBHOOK_SECRET` | the webhook's signing secret, `whsec_…` |
+| `STRIPE_CURRENCY` | currency for slot prices, default `usd` |
 | `PORT` | port for Express (Render sets this itself) |
 
 To check nothing secret is tracked: `git ls-files | grep .env` should print only `server/.env.example`.
@@ -73,6 +78,9 @@ The tables are created by the SQL files in `server/src/db/migrations/`, run in o
 - **`verification`** — short-lived codes for things like password resets. Required by Better Auth, unused for now.
 - **`bookings`** — one row per request sent from the Book a shoot form: name, email, shoot type, preferred date, message, status (`new`, `contacted`, `booked` or `declined`) and private admin notes. The shortlist is stored twice: `photo_ids`, and `shortlist_titles` as a snapshot, so a booking still names the photos even if one is later renamed or deleted. `user_id` links it to the sender's account when they were signed in.
 - **`blocked_dates`** — one row per day the studio isn't available, with an optional private note. The booking form and `POST /api/bookings` refuse these days.
+- **`shoot_slots`** — what can be bought: one row per time of day (sunrise, morning, midday, afternoon, sunset) with its price in cents. Sunrise and sunset are marked `premium` and cost more. Prices are edited in the admin panel's Payments tab.
+- **`orders`** — one row per purchase. Every order has a `user_id` (only signed-in users can check out), the booking it pays for, the total in cents and currency, the Stripe Checkout Session id, and a `status`: `pending` when created, `paid` (with `paid_at`) once the webhook confirms the payment, or `expired` if the checkout page timed out.
+- **`order_items`** — what each order bought: the slot, a description such as "Sunset shoot, Sat 12 Dec 2026", and the unit price **at the time of purchase**, so changing a price later doesn't rewrite old orders.
 - **`shortlists`** — which photos each user has starred. One row per (user, photo) pair, which is also the primary key, so a photo can't be starred twice. Deleting a user or photo deletes their rows (`ON DELETE CASCADE`).
 
 `user`, `account`, `session` and `verification` belong to Better Auth: it reads and writes them itself, and our code never queries them directly. Their exact columns are what Better Auth 1.7 expects (`002_auth.sql`).
@@ -93,6 +101,11 @@ The tables are created by the SQL files in `server/src/db/migrations/`, run in o
 | `DELETE /api/shortlist` | signed in | clear your shortlist |
 | `GET /api/me` | anyone | `{ user, isAdmin }`; `user` is `null` when signed out |
 | `POST /api/bookings` | anyone | send a booking request `{ name, email, shootType, preferredDate?, message, photoIds }`; past and blocked dates are refused |
+| `GET /api/slots` | anyone | `{ currency, slots }`: the time slots and their prices |
+| `POST /api/checkout` | signed in | booking fields + `slotId`: saves the booking, a pending order and its item, starts a Stripe Checkout Session, answers `{ orderId, url }` |
+| `POST /api/stripe/webhook` | Stripe | signed by Stripe; marks orders paid (`checkout.session.completed`) or expired |
+| `GET /api/orders/:id` | signed in | one of your orders with its items (404 for anyone else's) |
+| `GET /api/orders` | signed in | your orders, newest first |
 | `GET /api/availability` | anyone | `{ blockedDates: ["2026-12-12", …] }`, upcoming days only, no notes |
 | `GET /api/admin/photos` | admin | every photo with its `slug`, `sortOrder`, `shortlistCount` and `bookingCount` |
 | `POST /api/admin/photos` | admin | add a photo at the end of the gallery |
@@ -105,6 +118,8 @@ The tables are created by the SQL files in `server/src/db/migrations/`, run in o
 | `GET /api/admin/blocked-dates` | admin | upcoming blocked days with their notes |
 | `POST /api/admin/blocked-dates` | admin | `{ from, to?, note? }` blocks one day or a range (up to 366 days) |
 | `DELETE /api/admin/blocked-dates/:day` | admin | unblock a day |
+| `GET /api/admin/payments/orders` | admin | every order with the customer's name and email |
+| `PATCH /api/admin/payments/slots/:id` | admin | `{ priceCents }` changes a slot's price |
 
 The `/api/auth/*` routes are handled by Better Auth (`server/src/auth.js`, mounted in `server/src/index.js`). The shortlist routes go through `server/src/middleware/requireAuth.js`, which asks Better Auth for the session behind the request's cookie and answers `401` if there isn't one. The `/api/admin/*` routes go through `requireAdmin.js`, which does the same and then answers `403` unless the user's email is in `ADMIN_EMAILS`.
 
@@ -117,6 +132,40 @@ Form routes validate their input on the server (`server/src/lib/validatePhoto.js
 3. **Surviving a refresh.** When the page loads, `App.jsx` calls `GET /api/auth/get-session`. The cookie comes with it, Better Auth finds the session in the database, and returns the user. `Header` then swaps the **Sign in** button at the far right for a profile menu ("Hi, name"), whose dropdown shows your name, email and **Sign out**. The brand and nav links stay on the left.
 4. **Sign out.** `POST /api/auth/sign-out` deletes the session row and clears the cookie.
 
+## Payments (Stripe Checkout, test mode)
+
+The money is fake, but the flow is real: a real Checkout Session, a real signed webhook and a real order in Postgres.
+
+1. **Pick a slot.** The booking form shows each time of day with its price from `GET /api/slots`. Sunrise and sunset are marked "Golden hour" and cost more.
+2. **Book & pay.** You must be signed in. If you aren't, the sign-in dialog opens and everything typed stays in the form. `client/src/components/BookingForm.jsx` posts the form to `POST /api/checkout`.
+3. **The checkout route** (`server/src/routes/checkout.js`) runs behind `requireAuth`. It validates the form, looks the slot's price up in `shoot_slots` (any price the browser sends is ignored), and in one transaction saves the booking, an `orders` row (`pending`) and an `order_items` row. Then it asks Stripe for a Checkout Session for exactly that amount, with the order id in `metadata`, and sends back Stripe's URL.
+4. **Stripe's hosted page** takes the card. Test card: `4242 4242 4242 4242`, any future date, any CVC.
+5. **The webhook** (`server/src/routes/stripeWebhook.js`) is the only code that marks an order paid. It's mounted with `express.raw()` before `express.json()` so it can verify Stripe's signature on the exact bytes. On `checkout.session.completed` with `payment_status: "paid"` it sets the order to `paid` and the booking to `booked`, but only if the session id and amount match what was created and the order isn't already paid, so repeated deliveries do nothing. `checkout.session.expired` marks an unpaid order `expired`.
+6. **Back on the site**, Stripe sends you to `/checkout/success?order=12`. That page only reads `GET /api/orders/12`. If the webhook hasn't arrived yet the order is still `pending`, so the page checks again every 1.5 seconds, up to 10 times, then offers **Check again**. Opening that address without paying shows the order as pending; it never marks anything paid. Pressing back on Stripe's page goes to `/checkout/cancelled?order=12`.
+
+**Request a date without paying** still sends a free enquiry through `POST /api/bookings`.
+
+### Stripe setup
+
+**Locally**, with the [Stripe CLI](https://docs.stripe.com/stripe-cli):
+
+1. Sign up at stripe.com, make sure **Test mode** is on, and copy the secret key (Developers → API keys) into `server/.env` as `STRIPE_SECRET_KEY=sk_test_…`.
+2. Forward webhooks to your local server:
+   ```sh
+   stripe login
+   stripe listen --forward-to localhost:3000/api/stripe/webhook
+   ```
+   It prints a `whsec_…` signing secret. Put it in `server/.env` as `STRIPE_WEBHOOK_SECRET`, then restart `npm run dev`.
+3. Book & pay on http://localhost:5173 with the test card. The `stripe listen` terminal shows the event and the order turns `paid`.
+
+**In production:**
+
+1. In the Render dashboard, add `STRIPE_SECRET_KEY` (the same `sk_test_…` key) and, after step 2, `STRIPE_WEBHOOK_SECRET`.
+2. In Stripe (Test mode) → Developers → Webhooks → **Add endpoint**: URL `https://practicum-photography-api.onrender.com/api/stripe/webhook`, events `checkout.session.completed`, `checkout.session.async_payment_succeeded` and `checkout.session.expired`. Copy its signing secret into Render as `STRIPE_WEBHOOK_SECRET`. The endpoint points straight at Render rather than through Vercel, so nothing sits between Stripe and the signature check.
+3. Stripe sends customers back to `BETTER_AUTH_URL` (the Vercel site) + `/checkout/success`.
+
+Without `STRIPE_SECRET_KEY`, **Book & pay** answers that online payment isn't available and the free request still works. For offline testing, `STRIPE_API_HOST`, `STRIPE_API_PORT` and `STRIPE_API_PROTOCOL` can point the SDK at [stripe-mock](https://github.com/stripe/stripe-mock).
+
 ## Admin panel
 
 Go to `/admin`, or choose **Admin panel** in the profile menu, which only appears for admins.
@@ -128,6 +177,8 @@ Go to `/admin`, or choose **Admin panel** in the profile menu, which only appear
 **Calendar (Availability tab).** A month calendar shows every booking request as a dot on its preferred date, coloured by status (new, contacted, booked, declined), with up to three dots and "+n" for more. Blocked days are shaded and struck through, and today has a ring. Pick a day to see its requests and **Block this day** or **Unblock this day**; ← and → change month, and the arrow keys move between days. Bookings and blocked dates are loaded once in `AdminPage.jsx` and shared by all three tabs, so a status changed on the Bookings tab shows on the calendar straight away.
 
 **Availability tab.** Block a single day, or a range with From and To, with an optional private note such as "Booked: Laikipia lodge". Upcoming blocked days are listed with an **Unblock** button. On the Bookings tab, a booking with a future preferred date has a **Block this date** button, so a confirmed shoot can close that day in one click. "Today" always means today in Nairobi, on the server and in the browser.
+
+**Payments tab.** Every order, newest first, with the customer, what they bought, the amount and its status (filter by paid, pending, expired or cancelled), plus the total received. Next to it, **Slot prices**: change what each time of day costs. Booking cards on the Bookings tab also show the slot and whether the booking was paid.
 
 **Photos tab.** The gallery photos in order. Use ↑ and ↓ to reorder them, **Edit** to change one, **Delete** (with a Yes/Cancel check) to remove one, and **Add a photo** for a new one. In the Unsplash field you can paste either the `photo-…` id or the whole `images.unsplash.com` address, and the form shows a preview. Changes appear on the public site the next time it loads.
 
@@ -159,11 +210,18 @@ Practicum-2026/
 │       ├── lib/admins.js       reads ADMIN_EMAILS; isAdmin(user)
 │       ├── lib/options.js      allowed categories, shapes, shoot types, statuses
 │       ├── lib/dates.js        "today" in Nairobi; YYYY-MM-DD check
+│       ├── lib/stripe.js       Stripe client from env; refuses live keys
+│       ├── lib/bookingRecords.js     date check, slot lookup, saving a booking
 │       ├── lib/validatePhoto.js / validateBooking.js   server-side form checks
 │       ├── routes/photos.js    GET /api/photos
 │       ├── routes/shortlist.js the signed-in user's shortlist
 │       ├── routes/me.js        GET /api/me (user + isAdmin)
-│       ├── routes/bookings.js  POST /api/bookings
+│       ├── routes/bookings.js  POST /api/bookings (free enquiry)
+│       ├── routes/checkout.js  POST /api/checkout: order + Stripe Checkout Session (signed in)
+│       ├── routes/stripeWebhook.js   POST /api/stripe/webhook: the only thing that marks orders paid
+│       ├── routes/orders.js    GET /api/orders and /api/orders/:id
+│       ├── routes/slots.js     GET /api/slots
+│       ├── routes/admin/payments.js  all orders; edit slot prices
 │       ├── routes/availability.js    GET /api/availability
 │       ├── routes/admin/photos.js    add, edit, reorder, delete photos
 │       ├── routes/admin/bookings.js  list, update, delete bookings
@@ -171,13 +229,13 @@ Practicum-2026/
 │       └── db/
 │           ├── pool.js         one shared pg connection pool
 │           ├── migrate.js      runs migrations/*.sql in order
-│           ├── migrations/     001_photos, 002_auth, 003_shortlists, 004_bookings, 005_blocked_dates
+│           ├── migrations/     001_photos … 005_blocked_dates, 006_orders
 │           ├── seed.js         loads seed-data.js into an empty photos table
 │           └── seed-data.js    the Week 2 photo data
 └── client/                     React site
     ├── index.html              page shell: fonts, favicon, the #root div
     ├── vite.config.js          React + Tailwind plugins, /api proxy for development
-    ├── vercel.json             forwards /api/* to the Render server; serves /admin
+    ├── vercel.json             forwards /api/* to the Render server; serves /admin and /checkout/*
     ├── public/
     │   ├── favicon.svg
     │   └── images/             your own photos
@@ -193,6 +251,7 @@ Practicum-2026/
         ├── lib/unsplash.js     builds src / srcSet / sizes for each photo
         ├── lib/shareLink.js    reads and builds ?shortlist=1,5,8 links
         ├── lib/dates.js        today in Nairobi; formats YYYY-MM-DD dates
+        ├── lib/money.js        45000 + "usd" -> "$450"
         └── components/
             ├── Container.jsx        shared centred max-width wrapper
             ├── Header.jsx           brand, nav, shortlist count, Sign in
@@ -204,13 +263,16 @@ Practicum-2026/
             ├── PhotoTile.jsx        one photo in the grid
             ├── ShortlistToggle.jsx  the reusable shortlist button
             ├── About.jsx
-            ├── BookingForm.jsx
+            ├── BookingForm.jsx      Book & pay, or request a date for free
+            ├── SlotPicker.jsx       time-of-day choice with prices
+            ├── CheckoutResult.jsx   /checkout/success and /cancelled: reads the order, re-checks while pending
             ├── FormField.jsx        label + control pair used by the forms
             ├── Eyebrow.jsx          small section label
             ├── Footer.jsx
             └── admin/
                 ├── AdminPage.jsx       /admin: loads bookings + blocked dates; Bookings, Availability and Photos tabs
                 ├── AdminBookings.jsx   status filter + list of bookings
+                ├── AdminPayments.jsx   orders + slot prices
                 ├── AdminCalendar.jsx   month calendar: booking dots, blocked days, day panel
                 ├── AdminAvailability.jsx   block / unblock days
                 ├── statusStyles.js     status colours shared by cards and calendar
