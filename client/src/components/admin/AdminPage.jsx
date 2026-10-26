@@ -5,16 +5,18 @@ import ProfileMenu from "../ProfileMenu.jsx";
 import AdminAvailability from "./AdminAvailability.jsx";
 import AdminBookings from "./AdminBookings.jsx";
 import AdminCalendar from "./AdminCalendar.jsx";
+import AdminPayments from "./AdminPayments.jsx";
 import AdminPhotos from "./AdminPhotos.jsx";
 
 const tabs = [
   { id: "bookings", label: "Bookings" },
   { id: "availability", label: "Availability" },
+  { id: "payments", label: "Payments" },
   { id: "photos", label: "Photos" },
 ];
 
 // The admin panel at /admin. App renders this instead of the public page.
-// Only admins see the tabs (Bookings, Availability, Photos); everyone else
+// Only admins see the tabs (Bookings, Availability, Payments, Photos); everyone else
 // gets a short explanation.
 // The server checks again on every /api/admin request, so this is about
 // showing the right screen, not about security.
@@ -185,6 +187,9 @@ function AdminPage({ me, onSignInClick, onSignOut }) {
                   onBlock={blockDates}
                   onUnblock={unblockDate}
                 />
+              </section>
+              <section id="panel-payments" role="tabpanel" aria-labelledby="tab-payments" hidden={tab !== "payments"}>
+                {tab === "payments" && <AdminPayments />}
               </section>
               <section id="panel-photos" role="tabpanel" aria-labelledby="tab-photos" hidden={tab !== "photos"}>
                 <AdminPhotos />

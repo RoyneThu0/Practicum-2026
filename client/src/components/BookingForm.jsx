@@ -1,14 +1,19 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { sessions } from "../data/bookingOptions.js";
 import { api } from "../lib/api.js";
 import { formatDay, todayInNairobi } from "../lib/dates.js";
+import { formatMoney } from "../lib/money.js";
 import { shareLinkFor } from "../lib/shareLink.js";
 import Container from "./Container.jsx";
 import Eyebrow from "./Eyebrow.jsx";
 import FormField, { inputClass } from "./FormField.jsx";
+import SlotPicker from "./SlotPicker.jsx";
 
-// Booking requests are saved in the bookings table (POST /api/bookings) and
-// show up in the admin panel's Bookings tab.
+// Two ways to send the form:
+//   "Book & pay"            POST /api/checkout (signed in only): saves the booking and
+//                           an order, then sends the browser to Stripe's checkout page.
+//   "Request a date"        POST /api/bookings: a free enquiry, no payment.
+// Either way the booking shows up in the admin panel.
 //
 // Props:
 //   user               the signed-in user or null; prefills name and email
@@ -16,8 +21,31 @@ import FormField, { inputClass } from "./FormField.jsx";
 //   shortlistedTitles  their titles, shown above the submit button
 //   onClearShortlist() empties the shortlist
 //   blockedDates       upcoming days that can't be booked, e.g. ["2026-12-12"]
-function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShortlist, blockedDates = [] }) {
-  // idle | sending | sent | error. status says what to show under the button.
+//   slots, currency    the time slots and their prices (GET /api/slots)
+//   onSignInClick()    opens the sign-in dialog (paying needs an account)
+function BookingForm({
+  user,
+  shortlist = [],
+  shortlistedTitles = [],
+  onClearShortlist,
+  blockedDates = [],
+  slots = [],
+  currency = "usd",
+  onSignInClick,
+}) {
+  const [slotId, setSlotId] = useState("");
+  const nameRef = useRef(null);
+  const emailRef = useRef(null);
+
+  // When someone signs in (often halfway through, to pay), fill in their name
+  // and email, but only into empty fields, so nothing they typed is replaced.
+  useEffect(() => {
+    if (!user) return;
+    if (nameRef.current && !nameRef.current.value) nameRef.current.value = user.name ?? "";
+    if (emailRef.current && !emailRef.current.value) emailRef.current.value = user.email ?? "";
+  }, [user]);
+  const chosenSlot = slots.find((slot) => slot.id === slotId);
+  // idle | sending | redirecting | sent | error. status says what to show under the buttons.
   const [state, setState] = useState("idle");
   const [status, setStatus] = useState("");
   const [errors, setErrors] = useState({});
@@ -47,11 +75,27 @@ function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShor
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
 
+    // Which button sent the form: "pay" or "enquire".
+    const intent = event.nativeEvent.submitter?.value ?? "enquire";
+
     const day = form.get("date");
-    if (blockedDates.includes(day)) {
-      setErrors({ preferredDate: blockedMessage(day) });
+    const problems = {};
+    if (blockedDates.includes(day)) problems.preferredDate = blockedMessage(day);
+    if (intent === "pay" && !day) problems.preferredDate = "Choose a date for the shoot";
+    if (intent === "pay" && !slotId) problems.slotId = "Choose a time of day";
+    if (Object.keys(problems).length) {
+      setErrors(problems);
       setState("error");
       setStatus("Please check the highlighted fields.");
+      return;
+    }
+
+    // Paying needs an account, so every order belongs to a real user.
+    // Signing in keeps everything typed into the form.
+    if (intent === "pay" && !user) {
+      setState("error");
+      setStatus("Sign in or create an account to pay. Everything you've typed stays in the form.");
+      onSignInClick();
       return;
     }
 
@@ -59,20 +103,30 @@ function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShor
     setStatus("");
     setErrors({});
 
+    const details = {
+      name: form.get("name"),
+      email: form.get("email"),
+      shootType: form.get("shoot_type"),
+      preferredDate: form.get("date"),
+      message: form.get("message"),
+      slotId: slotId || undefined,
+      photoIds: shortlist,
+      website: form.get("website"), // the hidden honeypot field; people leave it empty
+    };
+
     try {
-      await api("/api/bookings", {
-        method: "POST",
-        body: {
-          name: form.get("name"),
-          email: form.get("email"),
-          shootType: form.get("shoot_type"),
-          preferredDate: form.get("date"),
-          message: form.get("message"),
-          photoIds: shortlist,
-          website: form.get("website"), // the hidden honeypot field; people leave it empty
-        },
-      });
+      if (intent === "pay") {
+        // The server works out the price itself and answers with Stripe's page.
+        const { url } = await api("/api/checkout", { method: "POST", body: details });
+        setState("redirecting");
+        setStatus("Taking you to the secure payment page…");
+        window.location.assign(url);
+        return;
+      }
+
+      await api("/api/bookings", { method: "POST", body: details });
       formElement.reset();
+      setSlotId("");
       setState("sent");
       setStatus("Thanks, your request is in. I'll reply within two working days.");
     } catch (err) {
@@ -81,7 +135,9 @@ function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShor
       setStatus(
         err.fields
           ? "Please check the highlighted fields."
-          : "Your request couldn't be sent just now. Please try again, or email hello@example.com."
+          : err.status === 503
+            ? "Online payment isn't available right now. Please use Request a date instead."
+            : "Your request couldn't be sent just now. Please try again, or email hello@example.com."
       );
     }
   }
@@ -135,11 +191,11 @@ function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShor
 
           <div className="flex flex-col gap-4 sm:flex-row">
             <FormField id="name" label="Name">
-              <input id="name" name="name" type="text" autoComplete="name" required defaultValue={user?.name ?? ""} key={`name-${user?.id ?? "guest"}`} className={inputClass} />
+              <input id="name" name="name" type="text" autoComplete="name" required ref={nameRef} className={inputClass} />
               {fieldError("name")}
             </FormField>
             <FormField id="email" label="Email">
-              <input id="email" name="email" type="email" autoComplete="email" required defaultValue={user?.email ?? ""} key={`email-${user?.id ?? "guest"}`} className={inputClass} />
+              <input id="email" name="email" type="email" autoComplete="email" required ref={emailRef} className={inputClass} />
               {fieldError("email")}
             </FormField>
           </div>
@@ -174,6 +230,19 @@ function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShor
               )}
             </FormField>
           </div>
+
+          {slots.length > 0 && (
+            <SlotPicker
+              slots={slots}
+              currency={currency}
+              value={slotId}
+              onChange={(id) => {
+                setSlotId(id);
+                setErrors((prev) => ({ ...prev, slotId: undefined }));
+              }}
+              error={errors.slotId}
+            />
+          )}
 
           <FormField id="message" label="Location and details">
             <textarea
@@ -224,13 +293,34 @@ function BookingForm({ user, shortlist = [], shortlistedTitles = [], onClearShor
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={state === "sending"}
-            className="self-start rounded-full bg-accent px-6 py-3 font-bold text-accent-ink transition-colors hover:bg-ink hover:text-paper disabled:opacity-60"
-          >
-            {state === "sending" ? "Sending…" : "Request a date"}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              name="intent"
+              value="pay"
+              disabled={state === "sending" || state === "redirecting" || slots.length === 0}
+              className="rounded-full bg-accent px-6 py-3 font-bold text-accent-ink transition-colors hover:bg-ink hover:text-paper disabled:opacity-60"
+            >
+              {state === "redirecting"
+                ? "Opening checkout…"
+                : chosenSlot
+                  ? `Book & pay ${formatMoney(chosenSlot.priceCents, currency)}`
+                  : "Book & pay"}
+            </button>
+            <button
+              type="submit"
+              name="intent"
+              value="enquire"
+              disabled={state === "sending" || state === "redirecting"}
+              className="rounded-full border border-line px-5 py-2.5 font-semibold transition-colors hover:border-ink disabled:opacity-60"
+            >
+              {state === "sending" ? "Sending…" : "Request a date without paying"}
+            </button>
+          </div>
+          <p className="text-xs text-ink-soft">
+            {user ? "Paying takes you to Stripe's secure checkout." : "Paying needs an account; you'll be asked to sign in."}{" "}
+            Payments are in <strong>test mode</strong>: use card 4242 4242 4242 4242, any future date and any CVC.
+          </p>
 
           <p
             role="status"

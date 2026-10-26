@@ -7,17 +7,21 @@ import Gallery from "./components/Gallery.jsx";
 import Header from "./components/Header.jsx";
 import Hero from "./components/Hero.jsx";
 import AdminPage from "./components/admin/AdminPage.jsx";
+import CheckoutResult from "./components/CheckoutResult.jsx";
 import { api } from "./lib/api.js";
 import { getMe, signOut } from "./lib/auth.js";
 import { clearSharedShortlistFromUrl, readSharedShortlist } from "./lib/shareLink.js";
 
-// The site has two pages: the portfolio at / and the admin panel at /admin.
-// A plain path check is enough for two pages, so there's no router library.
-// (Vercel serves index.html for /admin too; see client/vercel.json.)
-const isAdminPage = window.location.pathname.replace(/\/+$/, "") === "/admin";
+// The site has a few pages: the portfolio at /, the admin panel at /admin, and
+// the checkout result pages. A plain path check is enough, so there's no router
+// library. (Vercel serves index.html for those paths too; see client/vercel.json.)
+const path = window.location.pathname.replace(/\/+$/, "");
+const isAdminPage = path === "/admin";
+// Where Stripe sends people back: /checkout/success or /checkout/cancelled.
+const checkoutOutcome = { "/checkout/success": "success", "/checkout/cancelled": "cancelled" }[path] ?? null;
 
 // A shared shortlist link (?shortlist=1,5,8) is read once, when the page loads.
-const sharedIds = isAdminPage ? [] : readSharedShortlist();
+const sharedIds = isAdminPage || checkoutOutcome ? [] : readSharedShortlist();
 clearSharedShortlistFromUrl();
 
 function App() {
@@ -34,10 +38,14 @@ function App() {
   // Upcoming days the studio isn't available, for the booking form's date check.
   const [blockedDates, setBlockedDates] = useState([]);
 
+  // The shoot time slots and their prices, for the booking form.
+  const [slots, setSlots] = useState([]);
+  const [currency, setCurrency] = useState("usd");
+
   // Runs once when the page loads ([] = no dependencies, so never again).
   // The admin panel loads its own copy of the photos, so it skips this.
   useEffect(() => {
-    if (isAdminPage) return;
+    if (isAdminPage || checkoutOutcome) return;
     api("/api/photos")
       .then((rows) => {
         setPhotos(rows);
@@ -52,6 +60,13 @@ function App() {
     api("/api/availability")
       .then((data) => setBlockedDates(data.blockedDates))
       .catch(() => {}); // not fatal: the server still refuses blocked dates
+
+    api("/api/slots")
+      .then((data) => {
+        setSlots(data.slots);
+        setCurrency(data.currency);
+      })
+      .catch(() => {}); // without slots the form still works as a free request
   }, []);
 
   // Who is signed in (null = nobody). On page load we ask the server; the
@@ -83,7 +98,7 @@ function App() {
         setUser(me.user);
         setIsAdmin(me.isAdmin);
         // Signed in: merge any shared photos into the saved shortlist.
-        if (me.user && !isAdminPage) loadSavedShortlist(sharedIds);
+        if (me.user && !isAdminPage && !checkoutOutcome) loadSavedShortlist(sharedIds);
       })
       .catch(() => setUser(null))
       .finally(() => setMeLoaded(true));
@@ -92,7 +107,7 @@ function App() {
   function handleSignedIn(signedInUser) {
     setUser(signedInUser);
     setAuthOpen(false);
-    if (!isAdminPage) loadSavedShortlist(shortlist);
+    if (!isAdminPage && !checkoutOutcome) loadSavedShortlist(shortlist);
     // Ask again so the admin link and panel appear straight away for admins.
     getMe()
       .then((me) => setIsAdmin(me.isAdmin))
@@ -134,6 +149,19 @@ function App() {
     />
   );
 
+  if (checkoutOutcome) {
+    return (
+      <>
+        <CheckoutResult
+          outcome={checkoutOutcome}
+          me={meLoaded ? { user, isAdmin } : null}
+          onSignInClick={() => setAuthOpen(true)}
+        />
+        {authDialog}
+      </>
+    );
+  }
+
   if (isAdminPage) {
     return (
       <>
@@ -170,6 +198,9 @@ function App() {
         <BookingForm
           user={user}
           blockedDates={blockedDates}
+          slots={slots}
+          currency={currency}
+          onSignInClick={() => setAuthOpen(true)}
           shortlist={shortlist}
           shortlistedTitles={shortlistedTitles}
           onClearShortlist={clearShortlist}

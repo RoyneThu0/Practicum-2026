@@ -8,6 +8,10 @@
     {
       "source": "/admin",
       "destination": "/index.html"
+    },
+    {
+      "source": "/checkout/:page",
+      "destination": "/index.html"
     }
   ]
 }

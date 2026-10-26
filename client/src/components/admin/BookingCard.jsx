@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { bookingStatuses } from "../../data/bookingOptions.js";
 import { formatDay, todayInNairobi } from "../../lib/dates.js";
+import { formatMoney } from "../../lib/money.js";
 import FormField, { inputClass } from "../FormField.jsx";
 import ConfirmButton from "./ConfirmButton.jsx";
 import { statusChipClasses } from "./statusStyles.js";
@@ -51,7 +52,19 @@ function BookingCard({ booking, onChange, onDelete, isDateBlocked, onBlockDate }
             </a>
           </dd>
           <dt className="text-ink-soft">Shoot</dt>
-          <dd>{booking.shootType}</dd>
+          <dd>
+            {booking.shootType}
+            {booking.slotLabel && ` · ${booking.slotLabel}`}
+          </dd>
+          {booking.payment && (
+            <>
+              <dt className="text-ink-soft">Payment</dt>
+              <dd className={booking.payment.status === "paid" ? "font-semibold text-emerald-800 dark:text-emerald-300" : ""}>
+                {booking.payment.status === "paid" ? "Paid " : `Order #${booking.payment.id} ${booking.payment.status}, `}
+                {formatMoney(booking.payment.totalCents, booking.payment.currency)}
+              </dd>
+            </>
+          )}
           <dt className="text-ink-soft">Preferred date</dt>
           <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {booking.preferredDate ? formatDay(booking.preferredDate) : "Not given"}
