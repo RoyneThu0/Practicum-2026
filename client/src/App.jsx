@@ -41,6 +41,8 @@ function App() {
   // The shoot time slots and their prices, for the booking form.
   const [slots, setSlots] = useState([]);
   const [currency, setCurrency] = useState("usd");
+  // { enabled, testMode, publishableKey } from the server; null until loaded.
+  const [payments, setPayments] = useState(null);
 
   // Runs once when the page loads ([] = no dependencies, so never again).
   // The admin panel loads its own copy of the photos, so it skips this.
@@ -65,6 +67,7 @@ function App() {
       .then((data) => {
         setSlots(data.slots);
         setCurrency(data.currency);
+        setPayments(data.payments ?? null);
       })
       .catch(() => {}); // without slots the form still works as a free request
   }, []);
@@ -200,6 +203,7 @@ function App() {
           blockedDates={blockedDates}
           slots={slots}
           currency={currency}
+          payments={payments}
           onSignInClick={() => setAuthOpen(true)}
           shortlist={shortlist}
           shortlistedTitles={shortlistedTitles}

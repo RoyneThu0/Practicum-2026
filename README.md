@@ -1,6 +1,6 @@
 # Practicum Photography
 
-A single-page landscape photography portfolio. Assignment 1 was plain HTML and CSS; Assignment 2 rebuilt it with Vite, React and Tailwind CSS v4. Assignment 3 adds a real backend: an Express API, a Neon Postgres database, signup and login with Better Auth, and deployment to Render (API) and Vercel (site). On top of that there's an admin panel at `/admin` for managing the gallery photos and the booking requests. Assignment 4 adds payments: book a shoot and pay with Stripe Checkout (test mode), confirmed by a webhook and saved as orders. Plain JavaScript throughout, no TypeScript.
+A single-page landscape photography portfolio. Assignment 1 was plain HTML and CSS; Assignment 2 rebuilt it with Vite, React and Tailwind CSS v4. Assignment 3 adds a real backend: an Express API, a Neon Postgres database, signup and login with Better Auth, and deployment to Render (API) and Vercel (site). On top of that there's an admin panel at `/admin` for managing the gallery photos and the booking requests. Assignment 4 adds payments: book a shoot and pay with Stripe Checkout in a popup on the page (test mode), confirmed by a webhook and saved as orders. Plain JavaScript throughout, no TypeScript.
 
 ## Live
 
@@ -61,6 +61,7 @@ Real secrets live only in `server/.env` on your machine and in the Render dashbo
 | `BETTER_AUTH_URL` | the public address of the site: `http://localhost:5173` locally, the Vercel URL in production |
 | `ADMIN_EMAILS` | comma-separated emails that get the admin panel, e.g. `you@example.com` |
 | `STRIPE_SECRET_KEY` | Stripe **test** secret key, `sk_test_…` (live keys are refused) |
+| `STRIPE_PUBLISHABLE_KEY` | Stripe **test** publishable key, `pk_test_…`; sent to the browser to show the payment popup |
 | `STRIPE_WEBHOOK_SECRET` | the webhook's signing secret, `whsec_…` |
 | `STRIPE_CURRENCY` | currency for slot prices, default `usd` |
 | `PORT` | port for Express (Render sets this itself) |
@@ -79,7 +80,7 @@ The tables are created by the SQL files in `server/src/db/migrations/`, run in o
 - **`bookings`** — one row per request sent from the Book a shoot form: name, email, shoot type, preferred date, message, status (`new`, `contacted`, `booked` or `declined`) and private admin notes. The shortlist is stored twice: `photo_ids`, and `shortlist_titles` as a snapshot, so a booking still names the photos even if one is later renamed or deleted. `user_id` links it to the sender's account when they were signed in.
 - **`blocked_dates`** — one row per day the studio isn't available, with an optional private note. The booking form and `POST /api/bookings` refuse these days.
 - **`shoot_slots`** — what can be bought: one row per time of day (sunrise, morning, midday, afternoon, sunset) with its price in cents. Sunrise and sunset are marked `premium` and cost more. Prices are edited in the admin panel's Payments tab.
-- **`orders`** — one row per purchase. Every order has a `user_id` (only signed-in users can check out), the booking it pays for, the total in cents and currency, the Stripe Checkout Session id, and a `status`: `pending` when created, `paid` (with `paid_at`) once the webhook confirms the payment, or `expired` if the checkout page timed out.
+- **`orders`** — one row per purchase. Every order has a `user_id` (only signed-in users can check out), the booking it pays for, the total in cents and currency, the Stripe Checkout Session id, and a `status`: `pending` when created, `paid` (with `paid_at`) once the webhook confirms the payment, `cancelled` if the payment popup was closed, or `expired` if the checkout timed out.
 - **`order_items`** — what each order bought: the slot, a description such as "Sunset shoot, Sat 12 Dec 2026", and the unit price **at the time of purchase**, so changing a price later doesn't rewrite old orders.
 - **`shortlists`** — which photos each user has starred. One row per (user, photo) pair, which is also the primary key, so a photo can't be starred twice. Deleting a user or photo deletes their rows (`ON DELETE CASCADE`).
 
@@ -101,8 +102,9 @@ The tables are created by the SQL files in `server/src/db/migrations/`, run in o
 | `DELETE /api/shortlist` | signed in | clear your shortlist |
 | `GET /api/me` | anyone | `{ user, isAdmin }`; `user` is `null` when signed out |
 | `POST /api/bookings` | anyone | send a booking request `{ name, email, shootType, preferredDate?, message, photoIds }`; past and blocked dates are refused |
-| `GET /api/slots` | anyone | `{ currency, slots }`: the time slots and their prices |
-| `POST /api/checkout` | signed in | booking fields + `slotId`: saves the booking, a pending order and its item, starts a Stripe Checkout Session, answers `{ orderId, url }` |
+| `GET /api/slots` | anyone | `{ currency, slots, payments }`: the time slots, their prices, and `payments: { enabled, testMode, publishableKey }` |
+| `POST /api/checkout` | signed in | booking fields + `slotId`: saves the booking, a pending order and its item, starts an embedded Stripe Checkout Session, answers `{ orderId, clientSecret }` |
+| `POST /api/checkout/:orderId/cancel` | signed in (owner) | the popup was closed: expires the Stripe session and marks the pending order `cancelled` |
 | `POST /api/stripe/webhook` | Stripe | signed by Stripe; marks orders paid (`checkout.session.completed`) or expired |
 | `GET /api/orders/:id` | signed in | one of your orders with its items (404 for anyone else's) |
 | `GET /api/orders` | signed in | your orders, newest first |
@@ -138,10 +140,10 @@ The money is fake, but the flow is real: a real Checkout Session, a real signed 
 
 1. **Pick a slot.** The booking form shows each time of day with its price from `GET /api/slots`. Sunrise and sunset are marked "Golden hour" and cost more.
 2. **Book & pay.** You must be signed in. If you aren't, the sign-in dialog opens and everything typed stays in the form. `client/src/components/BookingForm.jsx` posts the form to `POST /api/checkout`.
-3. **The checkout route** (`server/src/routes/checkout.js`) runs behind `requireAuth`. It validates the form, looks the slot's price up in `shoot_slots` (any price the browser sends is ignored), and in one transaction saves the booking, an `orders` row (`pending`) and an `order_items` row. Then it asks Stripe for a Checkout Session for exactly that amount, with the order id in `metadata`, and sends back Stripe's URL.
-4. **Stripe's hosted page** takes the card. Test card: `4242 4242 4242 4242`, any future date, any CVC.
+3. **The checkout route** (`server/src/routes/checkout.js`) runs behind `requireAuth`. It validates the form, looks the slot's price up in `shoot_slots` (any price the browser sends is ignored), and in one transaction saves the booking, an `orders` row (`pending`) and an `order_items` row. Then it asks Stripe for a Checkout Session for exactly that amount, with the order id in `metadata` and `ui_mode: "embedded_page"`, and sends back the session's `clientSecret`.
+4. **The payment popup** (`client/src/components/CheckoutDialog.jsx`) loads Stripe.js with the publishable key and mounts Stripe's embedded checkout inside a `<dialog>`. Card details go into Stripe's iframe, never to our server. The popup shows the test card (`4242 4242 4242 4242`, any future date, any CVC) with a copy button. Closing it calls `POST /api/checkout/:orderId/cancel`, which expires the session so it can't be paid later.
 5. **The webhook** (`server/src/routes/stripeWebhook.js`) is the only code that marks an order paid. It's mounted with `express.raw()` before `express.json()` so it can verify Stripe's signature on the exact bytes. On `checkout.session.completed` with `payment_status: "paid"` it sets the order to `paid` and the booking to `booked`, but only if the session id and amount match what was created and the order isn't already paid, so repeated deliveries do nothing. `checkout.session.expired` marks an unpaid order `expired`.
-6. **Back on the site**, Stripe sends you to `/checkout/success?order=12`. That page only reads `GET /api/orders/12`. If the webhook hasn't arrived yet the order is still `pending`, so the page checks again every 1.5 seconds, up to 10 times, then offers **Check again**. Opening that address without paying shows the order as pending; it never marks anything paid. Pressing back on Stripe's page goes to `/checkout/cancelled?order=12`.
+6. **After paying**, Stripe sends the page to its `return_url`, `/checkout/success?order=12`. That page only reads `GET /api/orders/12`. If the webhook hasn't arrived yet the order is still `pending`, so the page checks again every 1.5 seconds, up to 10 times, then offers **Check again**. Opening that address without paying shows the order as pending; it never marks anything paid.
 
 **Request a date without paying** still sends a free enquiry through `POST /api/bookings`.
 
@@ -149,7 +151,7 @@ The money is fake, but the flow is real: a real Checkout Session, a real signed 
 
 **Locally**, with the [Stripe CLI](https://docs.stripe.com/stripe-cli):
 
-1. Sign up at stripe.com, make sure **Test mode** is on, and copy the secret key (Developers → API keys) into `server/.env` as `STRIPE_SECRET_KEY=sk_test_…`.
+1. Sign up at stripe.com, make sure **Test mode** is on, and copy both keys (Developers → API keys) into `server/.env` as `STRIPE_SECRET_KEY=sk_test_…` and `STRIPE_PUBLISHABLE_KEY=pk_test_…`.
 2. Forward webhooks to your local server:
    ```sh
    stripe login
@@ -160,11 +162,11 @@ The money is fake, but the flow is real: a real Checkout Session, a real signed 
 
 **In production:**
 
-1. In the Render dashboard, add `STRIPE_SECRET_KEY` (the same `sk_test_…` key) and, after step 2, `STRIPE_WEBHOOK_SECRET`.
+1. In the Render dashboard → Environment → **Environment Variables** (not Secret Files), add `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY` (the `sk_test_…` and `pk_test_…` keys) and, after step 2, `STRIPE_WEBHOOK_SECRET`.
 2. In Stripe (Test mode) → Developers → Webhooks → **Add endpoint**: URL `https://practicum-photography-api.onrender.com/api/stripe/webhook`, events `checkout.session.completed`, `checkout.session.async_payment_succeeded` and `checkout.session.expired`. Copy its signing secret into Render as `STRIPE_WEBHOOK_SECRET`. The endpoint points straight at Render rather than through Vercel, so nothing sits between Stripe and the signature check.
-3. Stripe sends customers back to `BETTER_AUTH_URL` (the Vercel site) + `/checkout/success`.
+3. After payment Stripe sends customers to `BETTER_AUTH_URL` (the Vercel site) + `/checkout/success`.
 
-Without `STRIPE_SECRET_KEY`, **Book & pay** answers that online payment isn't available and the free request still works. For offline testing, `STRIPE_API_HOST`, `STRIPE_API_PORT` and `STRIPE_API_PROTOCOL` can point the SDK at [stripe-mock](https://github.com/stripe/stripe-mock).
+Without both keys, **Book & pay** is turned off with a note that online payment isn't set up and the free request still works. For offline testing, `STRIPE_API_HOST`, `STRIPE_API_PORT` and `STRIPE_API_PROTOCOL` can point the SDK at [stripe-mock](https://github.com/stripe/stripe-mock).
 
 ## Admin panel
 
@@ -217,7 +219,7 @@ Practicum-2026/
 │       ├── routes/shortlist.js the signed-in user's shortlist
 │       ├── routes/me.js        GET /api/me (user + isAdmin)
 │       ├── routes/bookings.js  POST /api/bookings (free enquiry)
-│       ├── routes/checkout.js  POST /api/checkout: order + Stripe Checkout Session (signed in)
+│       ├── routes/checkout.js  POST /api/checkout: order + embedded Stripe Checkout Session; cancel route
 │       ├── routes/stripeWebhook.js   POST /api/stripe/webhook: the only thing that marks orders paid
 │       ├── routes/orders.js    GET /api/orders and /api/orders/:id
 │       ├── routes/slots.js     GET /api/slots
@@ -264,6 +266,7 @@ Practicum-2026/
             ├── ShortlistToggle.jsx  the reusable shortlist button
             ├── About.jsx
             ├── BookingForm.jsx      Book & pay, or request a date for free
+            ├── CheckoutDialog.jsx   the payment popup: Stripe's embedded checkout
             ├── SlotPicker.jsx       time-of-day choice with prices
             ├── CheckoutResult.jsx   /checkout/success and /cancelled: reads the order, re-checks while pending
             ├── FormField.jsx        label + control pair used by the forms

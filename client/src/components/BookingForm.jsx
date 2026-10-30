@@ -4,6 +4,7 @@ import { api } from "../lib/api.js";
 import { formatDay, todayInNairobi } from "../lib/dates.js";
 import { formatMoney } from "../lib/money.js";
 import { shareLinkFor } from "../lib/shareLink.js";
+import CheckoutDialog from "./CheckoutDialog.jsx";
 import Container from "./Container.jsx";
 import Eyebrow from "./Eyebrow.jsx";
 import FormField, { inputClass } from "./FormField.jsx";
@@ -11,7 +12,7 @@ import SlotPicker from "./SlotPicker.jsx";
 
 // Two ways to send the form:
 //   "Book & pay"            POST /api/checkout (signed in only): saves the booking and
-//                           an order, then sends the browser to Stripe's checkout page.
+//                           an order, then opens Stripe's checkout in a popup.
 //   "Request a date"        POST /api/bookings: a free enquiry, no payment.
 // Either way the booking shows up in the admin panel.
 //
@@ -22,6 +23,7 @@ import SlotPicker from "./SlotPicker.jsx";
 //   onClearShortlist() empties the shortlist
 //   blockedDates       upcoming days that can't be booked, e.g. ["2026-12-12"]
 //   slots, currency    the time slots and their prices (GET /api/slots)
+//   payments           { enabled, testMode, publishableKey } (GET /api/slots)
 //   onSignInClick()    opens the sign-in dialog (paying needs an account)
 function BookingForm({
   user,
@@ -31,11 +33,16 @@ function BookingForm({
   blockedDates = [],
   slots = [],
   currency = "usd",
+  payments = null,
   onSignInClick,
 }) {
   const [slotId, setSlotId] = useState("");
   const nameRef = useRef(null);
   const emailRef = useRef(null);
+  const testMode = Boolean(payments?.testMode);
+  const paymentsOff = payments ? !payments.enabled : false;
+  // The open payment popup: { orderId, clientSecret, title }, or null.
+  const [checkout, setCheckout] = useState(null);
 
   // When someone signs in (often halfway through, to pay), fill in their name
   // and email, but only into empty fields, so nothing they typed is replaced.
@@ -44,8 +51,17 @@ function BookingForm({
     if (nameRef.current && !nameRef.current.value) nameRef.current.value = user.name ?? "";
     if (emailRef.current && !emailRef.current.value) emailRef.current.value = user.email ?? "";
   }, [user]);
+
+  // The popup was closed without paying: cancel the order so it can't be paid later.
+  function closeCheckout() {
+    const { orderId } = checkout;
+    setCheckout(null);
+    setState("idle");
+    setStatus("Payment cancelled, nothing was charged. Your details are still in the form.");
+    api(`/api/checkout/${orderId}/cancel`, { method: "POST" }).catch(() => {});
+  }
   const chosenSlot = slots.find((slot) => slot.id === slotId);
-  // idle | sending | redirecting | sent | error. status says what to show under the buttons.
+  // idle | sending | paying | sent | error. status says what to show under the buttons.
   const [state, setState] = useState("idle");
   const [status, setStatus] = useState("");
   const [errors, setErrors] = useState({});
@@ -116,11 +132,17 @@ function BookingForm({
 
     try {
       if (intent === "pay") {
-        // The server works out the price itself and answers with Stripe's page.
-        const { url } = await api("/api/checkout", { method: "POST", body: details });
-        setState("redirecting");
-        setStatus("Taking you to the secure payment page…");
-        window.location.assign(url);
+        // The server works out the price itself and answers with a Stripe
+        // checkout session, which opens in the popup.
+        const { orderId, clientSecret } = await api("/api/checkout", { method: "POST", body: details });
+        const slot = slots.find((s) => s.id === slotId);
+        setState("paying");
+        setStatus("Finish paying in the secure Stripe popup.");
+        setCheckout({
+          orderId,
+          clientSecret,
+          title: `${slot.label} shoot, ${formatDay(day)} · ${formatMoney(slot.priceCents, currency)}`,
+        });
         return;
       }
 
@@ -298,11 +320,11 @@ function BookingForm({
               type="submit"
               name="intent"
               value="pay"
-              disabled={state === "sending" || state === "redirecting" || slots.length === 0}
+              disabled={state === "sending" || state === "paying" || slots.length === 0 || paymentsOff}
               className="rounded-full bg-accent px-6 py-3 font-bold text-accent-ink transition-colors hover:bg-ink hover:text-paper disabled:opacity-60"
             >
-              {state === "redirecting"
-                ? "Opening checkout…"
+              {state === "paying"
+                ? "Paying…"
                 : chosenSlot
                   ? `Book & pay ${formatMoney(chosenSlot.priceCents, currency)}`
                   : "Book & pay"}
@@ -311,15 +333,23 @@ function BookingForm({
               type="submit"
               name="intent"
               value="enquire"
-              disabled={state === "sending" || state === "redirecting"}
+              disabled={state === "sending" || state === "paying"}
               className="rounded-full border border-line px-5 py-2.5 font-semibold transition-colors hover:border-ink disabled:opacity-60"
             >
               {state === "sending" ? "Sending…" : "Request a date without paying"}
             </button>
           </div>
           <p className="text-xs text-ink-soft">
-            {user ? "Paying takes you to Stripe's secure checkout." : "Paying needs an account; you'll be asked to sign in."}{" "}
-            Payments are in <strong>test mode</strong>: use card 4242 4242 4242 4242, any future date and any CVC.
+            {paymentsOff
+              ? "Online payment isn't set up yet, so for now please request a date."
+              : user
+                ? "Paying opens Stripe's secure checkout in a popup."
+                : "Paying needs an account; you'll be asked to sign in."}
+            {testMode && (
+              <>
+                {" "}Payments are in <strong>test mode</strong>: use card 4242 4242 4242 4242, any future date and any CVC.
+              </>
+            )}
           </p>
 
           <p
@@ -331,6 +361,15 @@ function BookingForm({
           </p>
         </form>
       </Container>
+
+      {payments?.publishableKey && (
+        <CheckoutDialog
+          checkout={checkout}
+          publishableKey={payments.publishableKey}
+          testMode={testMode}
+          onClose={closeCheckout}
+        />
+      )}
     </section>
   );
 }
