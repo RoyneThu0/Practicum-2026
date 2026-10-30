@@ -13,3 +13,13 @@ export const statusDotClasses = {
   booked: "bg-emerald-600 dark:bg-emerald-400",
   declined: "bg-ink-soft/50",
 };
+
+// Payment badges on the booking cards (the booking's latest order).
+// Pending is outlined so it doesn't read as a booking status.
+export const paymentChips = {
+  paid: { label: "Paid", classes: "bg-emerald-200 text-emerald-950 dark:bg-emerald-300/20 dark:text-emerald-200" },
+  pending: {
+    label: "Payment pending",
+    classes: "border border-amber-500 text-amber-900 dark:border-amber-300/60 dark:text-amber-200",
+  },
+};

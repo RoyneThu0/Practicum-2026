@@ -4,7 +4,7 @@ import { formatDay, todayInNairobi } from "../../lib/dates.js";
 import { formatMoney } from "../../lib/money.js";
 import FormField, { inputClass } from "../FormField.jsx";
 import ConfirmButton from "./ConfirmButton.jsx";
-import { statusChipClasses } from "./statusStyles.js";
+import { paymentChips, statusChipClasses } from "./statusStyles.js";
 
 const received = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -30,6 +30,8 @@ function BookingCard({ booking, onChange, onDelete, isDateBlocked, onBlockDate }
     }
   }
 
+  // A "Paid" or "Payment pending" badge next to the status, from the latest order.
+  const paymentChip = paymentChips[booking.payment?.status];
   const statusId = `booking-${booking.id}-status`;
   const notesId = `booking-${booking.id}-notes`;
 
@@ -41,6 +43,11 @@ function BookingCard({ booking, onChange, onDelete, isDateBlocked, onBlockDate }
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${statusChipClasses[booking.status]}`}>
             {bookingStatuses.find((s) => s.id === booking.status)?.label}
           </span>
+          {paymentChip && (
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${paymentChip.classes}`}>
+              {paymentChip.label} {formatMoney(booking.payment.totalCents, booking.payment.currency)}
+            </span>
+          )}
           {booking.hasAccount && <span className="font-mono text-xs text-ink-soft">has an account</span>}
         </header>
 
