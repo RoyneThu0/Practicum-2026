@@ -4,7 +4,7 @@ import FilterBar from "../FilterBar.jsx";
 import BookingCard from "./BookingCard.jsx";
 
 // The Bookings tab: every request sent from the "Book a shoot" form, newest
-// first, filterable by status. The bookings themselves live in AdminPage,
+// first, filterable by status or by payment (paid / pending). The bookings themselves live in AdminPage,
 // because the Availability tab's calendar shows them too; this tab only
 // filters and displays them, and passes changes back up.
 function AdminBookings({ bookings, status, onUpdate, onDelete, blockedDates, onBlockDate }) {
@@ -25,12 +25,22 @@ function AdminBookings({ bookings, status, onUpdate, onDelete, blockedDates, onB
     return <p role="alert" className="py-12">The bookings couldn't be loaded. Refresh to try again.</p>;
   }
 
-  const countFor = (id) => (id === "all" ? bookings.length : bookings.filter((b) => b.status === id).length);
-  const filters = [{ id: "all", label: "All" }, ...bookingStatuses].map((s) => ({
+  // Booking statuses, plus two payment filters: bookings whose latest order is
+  // paid, and ones still waiting on payment (the order is pending).
+  const paymentFilters = [
+    { id: "paid", label: "Paid" },
+    { id: "pending", label: "Pending payment" },
+  ];
+  const matches = (booking, id) => {
+    if (id === "all") return true;
+    if (paymentFilters.some((f) => f.id === id)) return booking.payment?.status === id;
+    return booking.status === id;
+  };
+  const filters = [{ id: "all", label: "All" }, ...bookingStatuses, ...paymentFilters].map((s) => ({
     id: s.id,
-    label: `${s.label} (${countFor(s.id)})`,
+    label: `${s.label} (${bookings.filter((b) => matches(b, s.id)).length})`,
   }));
-  const visible = filter === "all" ? bookings : bookings.filter((b) => b.status === filter);
+  const visible = bookings.filter((b) => matches(b, filter));
 
   return (
     <div className="flex flex-col gap-5">
@@ -44,7 +54,7 @@ function AdminBookings({ bookings, status, onUpdate, onDelete, blockedDates, onB
         <p className="rounded border border-dashed border-line px-4 py-10 text-center text-ink-soft">
           {bookings.length === 0
             ? "No booking requests yet. They'll appear here when someone sends the “Book a shoot” form."
-            : "No bookings with this status."}
+            : "No bookings match this filter."}
         </p>
       ) : (
         <div className="flex flex-col gap-4">
